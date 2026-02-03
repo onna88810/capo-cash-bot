@@ -166,10 +166,22 @@ client.on("messageCreate", async (message) => {
     });
 
     if (res.ok) {
-      await markRumblePaid(guildId, message.id, winnerId, amount);
-      try { await message.react("💸"); } catch {}
-    } else {
-      try { await message.react("⚠️"); } catch {}
+  await markRumblePaid(guildId, message.id, winnerId, amount);
+
+  // React for quick visual confirmation
+  try { await message.react("💸"); } catch {}
+
+  // ✅ Announce payout in the same channel (mentions winner)
+  try {
+    await message.channel.send(
+      `🏆 <@${winnerId}> was awarded **${amount} ${cfg.currency_name}** for winning **Rumble Royals**! 💸`
+    );
+  } catch (e) {
+    console.error("Failed to send rumble payout message:", e?.message || e);
+  }
+} else {
+  try { await message.react("⚠️"); } catch {}
+}
     }
   } catch (e) {
     console.error("Rumble payout error:", e?.message || e);
