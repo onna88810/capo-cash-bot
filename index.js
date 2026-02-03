@@ -269,7 +269,10 @@ if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
 }
   return interaction.editReply({
   embeds: [embed],
-  components: leaderboardRowComponents({ page: pageData.page, totalPages: pageData.totalPages })
+  components: leaderboardRowComponents({ 
+    page: pageData.page, 
+    totalPages: pageData.totalPages
+  })
 });
 
 return;
