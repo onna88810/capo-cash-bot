@@ -270,13 +270,8 @@ client.on("interactionCreate", async (interaction) => {
       })
     });
   }
-
-  // From here down = ONLY slash commands (not buttons)
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.guild) return;
-
-  // (keep your existing await interaction.deferReply() etc below this)
-});
 
   // prevent Discord 3s timeout
   await interaction.deferReply();
