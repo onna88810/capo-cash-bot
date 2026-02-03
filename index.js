@@ -451,34 +451,33 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // LEADERBOARD
-    if (interaction.commandName === "leaderboard") {
-      const pageSize = 10;
-      const page = Math.max(1, interaction.options.getInteger("page") || 1);
-      const start = (page - 1) * pageSize;
-      const end = start + pageSize - 1;
+  // LEADERBOARD (embed + buttons)
+if (interaction.commandName === "leaderboard") {
+  const page = Math.max(1, interaction.options.getInteger("page") || 1);
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("user_id,balance")
-        .eq("guild_id", guildId)
-        .order("balance", { ascending: false })
-        .range(start, end);
+  const pageData = await fetchLeaderboardPage(guildId, page, LB_PAGE_SIZE);
 
-      if (error) throw error;
+  if (!pageData.rows || pageData.rows.length === 0) {
+    return interaction.editReply(`📊 No results for page **${page}**.`);
+  }
 
-      if (!data || data.length === 0) {
-        return interaction.editReply(`📊 No results for page **${page}**.`);
-      }
+  const embed = buildLeaderboardEmbed({
+    guildName: interaction.guild?.name || "Server",
+    currencyName: cfg.currency_name || "Capo Cash",
+    page: pageData.page,
+    totalPages: pageData.totalPages,
+    rows: pageData.rows,
+    pageSize: pageData.pageSize
+  });
 
-      const lines = data.map((row, idx) => {
-        const rank = start + idx + 1;
-        return `**${rank}.** <@${row.user_id}> — **${row.balance ?? 0}** ${cfg.currency_name}`;
-      });
-
-      return interaction.editReply(`📊 **Capo Cash Leaderboard — Page ${page}**\n${lines.join("\n")}`);
-    }
-
+  return interaction.editReply({
+    embeds: [embed],
+    components: leaderboardRowComponents({
+      page: pageData.page,
+      totalPages: pageData.totalPages
+    })
+  });
+}
     // COINFLIP
     if (interaction.commandName === "coinflip") {
       const bet = Math.max(1, interaction.options.getInteger("bet", true));
