@@ -72,3 +72,4 @@ new SlashCommandBuilder()
       .setName("view")
       .setDescription("View current config")
   ),
+].map(c => c.toJSON());
