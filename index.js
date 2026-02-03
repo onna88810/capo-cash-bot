@@ -229,7 +229,7 @@ client.on("interactionCreate", async (interaction) => {
   if (!interaction.guild) return;
 
   // prevent Discord 3s timeout
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply();
 
   const guildId = interaction.guild.id;
   const callerId = interaction.user.id;
@@ -604,6 +604,8 @@ client.on("interactionCreate", async (interaction) => {
 
     // ROB SETTINGS
     if (interaction.commandName === "robsettings") {
+      await interaction.deferReply({ ephemeral: true });
+      
       await upsertUserRow(guildId, callerId);
       const mode = interaction.options.getString("mode", true);
 
