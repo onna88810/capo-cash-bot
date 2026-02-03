@@ -49,8 +49,8 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("slots")
     .setDescription("Gamble: slots")
-    .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true))
-].map(c => c.toJSON());
+    .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true)),
+
 // CONFIG
 new SlashCommandBuilder()
   .setName("config")
@@ -71,5 +71,6 @@ new SlashCommandBuilder()
     sub
       .setName("view")
       .setDescription("View current config")
-  ),
-].map(c => c.toJSON());
+  )
+]
+  .map(c => c.toJSON());
