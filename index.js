@@ -226,58 +226,57 @@ client.on("messageCreate", async (message) => {
  */
 client.on("interactionCreate", async (interaction) => {
   // Leaderboard buttons
-if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
-  await interaction.deferUpdate();
+  if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
+    await interaction.deferUpdate();
 
-  const guildId = interaction.guildId;
-  const callerId = interaction.user.id;
-  const cfg = await getConfig(guildId);
-  const currencyName = cfg.currency_name || "Capo Cash";
-  const guildName = interaction.guild?.name || "Server";
+    const guildId = interaction.guildId;
+    const callerId = interaction.user.id;
+    const cfg = await getConfig(guildId);
+    const currencyName = cfg.currency_name || "Capo Cash";
+    const guildName = interaction.guild?.name || "Server";
 
-  const parts = interaction.customId.split(":");
-  const action = parts[1];
-  const currentPage = Number(parts[2] || 1);
+    const parts = interaction.customId.split(":");
+    const action = parts[1];
+    const currentPage = Number(parts[2] || 1);
 
-  const base = await fetchLeaderboardPage(guildId, 1, LB_PAGE_SIZE);
-  let targetPage = 1;
+    const base = await fetchLeaderboardPage(guildId, 1, LB_PAGE_SIZE);
+    let targetPage = 1;
 
-  if (action === "first") targetPage = 1;
-  else if (action === "last") targetPage = base.totalPages;
-  else if (action === "prev") targetPage = Math.max(1, currentPage - 1);
-  else if (action === "next") targetPage = Math.min(base.totalPages, currentPage + 1);
-  else if (action === "me") {
-    const rank = await findUserRankByScan(guildId, callerId);
-    targetPage = rank ? Math.ceil(rank / LB_PAGE_SIZE) : 1;
+    if (action === "first") targetPage = 1;
+    else if (action === "last") targetPage = base.totalPages;
+    else if (action === "prev") targetPage = Math.max(1, currentPage - 1);
+    else if (action === "next") targetPage = Math.min(base.totalPages, currentPage + 1);
+    else if (action === "me") {
+      const rank = await findUserRankByScan(guildId, callerId);
+      targetPage = rank ? Math.ceil(rank / LB_PAGE_SIZE) : 1;
+    }
+
+    const pageData = await fetchLeaderboardPage(guildId, targetPage, LB_PAGE_SIZE);
+
+    const embed = buildLeaderboardEmbed({
+      guildName,
+      currencyName,
+      page: pageData.page,
+      totalPages: pageData.totalPages,
+      rows: pageData.rows,
+      pageSize: pageData.pageSize
+    });
+
+    return interaction.editReply({
+      embeds: [embed],
+      components: leaderboardRowComponents({
+        page: pageData.page,
+        totalPages: pageData.totalPages
+      })
+    });
   }
 
-  const pageData = await fetchLeaderboardPage(guildId, targetPage, LB_PAGE_SIZE);
-
-  const embed = buildLeaderboardEmbed({
-    guildName,
-    currencyName,
-    page: pageData.page,
-    totalPages: pageData.totalPages,
-    rows: pageData.rows,
-    pageSize: pageData.pageSize
-  });
-
-  return interaction.editReply({
-    embeds: [embed],
-    components: leaderboardRowComponents({ page: pageData.page, totalPages: pageData.totalPages })
-  });
-}
-  return interaction.editReply({
-  embeds: [embed],
-  components: leaderboardRowComponents({ 
-    page: pageData.page, 
-    totalPages: pageData.totalPages
-  })
-});
-
-return;
+  // From here down = ONLY slash commands (not buttons)
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.guild) return;
+
+  // (keep your existing await interaction.deferReply() etc below this)
+});
 
   // prevent Discord 3s timeout
   await interaction.deferReply();
