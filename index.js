@@ -6,7 +6,7 @@ import {
   Routes,
   EmbedBuilder,
   PermissionsBitField,
-  PermissionFlagBits,
+  PermissionFlagsBits,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle
