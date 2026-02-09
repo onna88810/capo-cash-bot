@@ -10,6 +10,12 @@ import {
   ButtonBuilder,
   ButtonStyle
 } from "discord.js";
+// Roles that get muted when /lock is used
+const LOCK_ROLE_IDS = [
+  "1457168952936501248",
+  "1457169070452379680",
+  "1457174938380402739"
+];
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
 import {
