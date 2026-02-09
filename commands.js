@@ -1,7 +1,6 @@
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 export const COMMANDS = [
-
   // BALANCE
   new SlashCommandBuilder()
     .setName("balance")
@@ -21,10 +20,10 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("give")
     .setDescription("Give Capo Cash to a user")
-    .addUserOption(o =>
+    .addUserOption((o) =>
       o.setName("user").setDescription("User to give cash to").setRequired(true)
     )
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("amount").setDescription("Amount to give").setRequired(true)
     ),
 
@@ -32,7 +31,7 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("leaderboard")
     .setDescription("View the richest Capo Cash holders")
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("page").setDescription("Page number").setRequired(false)
     ),
 
@@ -40,11 +39,12 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("coinflip")
     .setDescription("Bet on a coin flip")
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("bet").setDescription("Bet amount").setRequired(true)
     )
-    .addStringOption(o =>
-      o.setName("choice")
+    .addStringOption((o) =>
+      o
+        .setName("choice")
         .setDescription("heads or tails")
         .setRequired(true)
         .addChoices(
@@ -57,7 +57,7 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("dice")
     .setDescription("Roll a die")
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("bet").setDescription("Bet amount").setRequired(true)
     ),
 
@@ -65,7 +65,7 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("slots")
     .setDescription("Spin the slots")
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("bet").setDescription("Bet amount").setRequired(true)
     ),
 
@@ -73,30 +73,8 @@ export const COMMANDS = [
   new SlashCommandBuilder()
     .setName("blackjack")
     .setDescription("Play blackjack")
-    .addIntegerOption(o =>
+    .addIntegerOption((o) =>
       o.setName("bet").setDescription("Bet amount").setRequired(true)
-    ),
-
-  // ROB
-  new SlashCommandBuilder()
-    .setName("rob")
-    .setDescription("Rob another user")
-    .addUserOption(o =>
-      o.setName("user").setDescription("Target user").setRequired(true)
-    ),
-
-  // ROB SETTINGS
-  new SlashCommandBuilder()
-    .setName("robsettings")
-    .setDescription("Enable or disable being robbed")
-    .addStringOption(o =>
-      o.setName("mode")
-        .setDescription("on or off")
-        .setRequired(true)
-        .addChoices(
-          { name: "on", value: "on" },
-          { name: "off", value: "off" }
-        )
     ),
 
   // CONFIG
@@ -104,21 +82,18 @@ export const COMMANDS = [
     .setName("config")
     .setDescription("Admin config for Capo Cash")
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-    .addSubcommand(sub =>
+    .addSubcommand((sub) =>
       sub
         .setName("rumble_message")
         .setDescription("Set the rumble winner announcement message template")
-        .addStringOption(opt =>
+        .addStringOption((opt) =>
           opt
             .setName("template")
             .setDescription("Use {user} {amount} {currency}")
             .setRequired(true)
         )
     )
-    .addSubcommand(sub =>
-      sub
-        .setName("view")
-        .setDescription("View current config")
+    .addSubcommand((sub) =>
+      sub.setName("view").setDescription("View current config")
     )
-
-].map(c => c.toJSON());
+].map((c) => c.toJSON());
