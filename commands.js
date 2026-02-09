@@ -77,6 +77,18 @@ export const COMMANDS = [
       o.setName("bet").setDescription("Bet amount").setRequired(true)
     ),
 
+  // LOCK
+new SlashCommandBuilder()
+  .setName("lock")
+  .setDescription("Lock the current channel (remove Send Messages for configured roles)"
+    ),
+  
+// UNLOCK
+new SlashCommandBuilder()
+  .setName("unlock")
+  .setDescription("Unlock the current channel (restore Send Messages for configured roles)"
+    ),
+  
   // CONFIG
   new SlashCommandBuilder()
     .setName("config")
