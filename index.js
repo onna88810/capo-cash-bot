@@ -413,6 +413,35 @@ client.on("interactionCreate", async (interaction) => {
 
   await interaction.deferReply();
 
+// 🔒 LOCK / 🔓 UNLOCK COMMANDS
+if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+
+  if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+    return interaction.editReply("❌ You don’t have permission to use this.");
+  }
+
+  const channel = interaction.channel;
+  if (!channel || !channel.isTextBased()) {
+    return interaction.editReply("❌ This must be used in a text channel.");
+  }
+
+  const lock = interaction.commandName === "lock";
+
+  try {
+    for (const roleId of LOCK_ROLE_IDS) {
+      await channel.permissionOverwrites.edit(roleId, {
+        SendMessages: lock ? false : null
+      });
+    }
+
+    return interaction.editReply(lock ? "🔒 Channel locked." : "🔓 Channel unlocked.");
+
+  } catch (e) {
+    console.error("Lock error:", e);
+    return interaction.editReply("⚠️ Failed to change permissions.");
+  }
+}
+  
   const guildId = interaction.guild.id;
   const callerId = interaction.user.id;
 
