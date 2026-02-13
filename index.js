@@ -815,9 +815,20 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
     return interaction.editReply("⚠️ Command not implemented yet.");
   } catch (e) {
-    console.error("Interaction error:", e?.message || e);
-    return interaction.editReply("⚠️ Something went wrong (check Railway logs).");
+  console.error("Interaction error:", e?.message || e);
+
+  if (interaction.deferred || interaction.replied) {
+    return interaction.editReply({
+      content: "⚠️ Something went wrong. Please try again.",
+      ephemeral: true
+    });
+  } else {
+    return interaction.reply({
+      content: "⚠️ Something went wrong. Please try again.",
+      ephemeral: true
+    });
   }
+}
 });
 
 client.login(DISCORD_TOKEN);
