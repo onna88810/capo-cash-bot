@@ -1220,6 +1220,6 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
       if (payout === 0) return interaction.editReply(`${reel}\n❌ You lost **${bet}**.`);
       return interaction.editReply(`${reel}\n✅ You won! (**+${payout - bet}** profit)`);
+    }
     });
-
 client.login(DISCORD_TOKEN);
