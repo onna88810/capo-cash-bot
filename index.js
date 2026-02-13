@@ -36,7 +36,145 @@ const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
 if (!DISCORD_TOKEN || !DISCORD_APP_ID) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_APP_ID env vars.");
 }
+// ===== Blackjack: in-memory active games (per user per channel) =====
+const BJ_GAMES = new Map(); // key => state
+const BJ_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const BJ_PAGE_CURRENCY = (cfg) => cfg?.currency_name || "Capo Cash";
 
+const SUITS = ["♠", "♥", "♦", "♣"];
+const RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+
+function bjCardValue(rank) {
+  if (rank === "A") return 11;
+  if (["K","Q","J"].includes(rank)) return 10;
+  return Number(rank);
+}
+
+function bjDrawCard() {
+  const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
+  const rank = RANKS[Math.floor(Math.random() * RANKS.length)];
+  return { rank, suit, value: bjCardValue(rank) };
+}
+
+function bjScore(hand) {
+  let total = hand.reduce((s, c) => s + c.value, 0);
+  let aces = hand.filter(c => c.rank === "A").length;
+  while (aces > 0 && total > 21) { total -= 10; aces--; }
+  return total;
+}
+
+function bjFmtHand(hand) {
+  return hand.map(c => `\`${c.rank}${c.suit}\``).join(" ");
+}
+
+function bjFmtDealerHand(dealerHand, revealAll) {
+  if (revealAll) return bjFmtHand(dealerHand);
+  const up = dealerHand[0] ? `\`${dealerHand[0].rank}${dealerHand[0].suit}\`` : "`?`";
+  return `${up} \`🂠\``; // face-down card
+}
+
+function bjCanSplit(hand) {
+  if (!hand || hand.length !== 2) return false;
+  return bjCardValue(hand[0].rank) === bjCardValue(hand[1].rank); // 10/J/Q/K all count as 10
+}
+
+function bjGameKey(guildId, userId, channelId) {
+  return `${guildId}:${channelId}:${userId}`;
+}
+
+function bjIsExpired(state) {
+  return Date.now() - state.createdAt > BJ_TTL_MS;
+}
+
+function bjButtons(state) {
+  const inSplit = state.hands.length === 2;
+  const currentHand = state.hands[state.activeHandIndex];
+
+  const canSplit =
+    !state.didSplit &&
+    state.hands.length === 1 &&
+    bjCanSplit(currentHand) &&
+    currentHand.length === 2;
+
+  const canDouble =
+    currentHand.length === 2 &&
+    !state.didDoubleOnHand[state.activeHandIndex];
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`bj:hit:${state.key}`)
+      .setLabel(inSplit ? `Hit (Hand ${state.activeHandIndex + 1})` : "Hit")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId(`bj:stand:${state.key}`)
+      .setLabel(inSplit ? `Stand (Hand ${state.activeHandIndex + 1})` : "Stand")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId(`bj:double:${state.key}`)
+      .setLabel("Double Down")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(!canDouble),
+
+    new ButtonBuilder()
+      .setCustomId(`bj:split:${state.key}`)
+      .setLabel("Split")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!canSplit)
+  );
+
+  return [row];
+}
+
+function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}) {
+  const currency = BJ_PAGE_CURRENCY(cfg);
+  const betText = state.hands.length === 2 ? `${state.handBets[0]} + ${state.handBets[1]} (split)` : `${state.handBets[0]}`;
+
+  const fields = [];
+
+  // Player hands
+  if (state.hands.length === 1) {
+    const ps = bjScore(state.hands[0]);
+    fields.push({
+      name: `You (Total: ${ps})`,
+      value: bjFmtHand(state.hands[0]) || "` `",
+      inline: false
+    });
+  } else {
+    const h1 = state.hands[0], h2 = state.hands[1];
+    const s1 = bjScore(h1), s2 = bjScore(h2);
+    const p1 = state.activeHandIndex === 0 ? "👉 " : "";
+    const p2 = state.activeHandIndex === 1 ? "👉 " : "";
+    fields.push(
+      { name: `${p1}Hand 1 (Total: ${s1})`, value: bjFmtHand(h1) || "` `", inline: false },
+      { name: `${p2}Hand 2 (Total: ${s2})`, value: bjFmtHand(h2) || "` `", inline: false }
+    );
+  }
+
+  // Dealer
+  const dealerShowing = state.dealerHand?.[0] ? bjCardValue(state.dealerHand[0].rank) : "?";
+  const dealerTotal = bjScore(state.dealerHand);
+
+  fields.push({
+    name: revealDealer ? `Dealer (Total: ${dealerTotal})` : `Dealer (Showing: ${dealerShowing})`,
+    value: bjFmtDealerHand(state.dealerHand, revealDealer),
+    inline: false
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle("🃏 Capo Cash Blackjack")
+    .setDescription(
+      `**Bet:** ${betText} ${currency}\n` +
+      (state.messageLine ? `**Status:** ${state.messageLine}\n` : "")
+    )
+    .addFields(fields)
+    .setTimestamp(new Date());
+
+  if (footerText) embed.setFooter({ text: footerText });
+
+  return embed;
+}
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
