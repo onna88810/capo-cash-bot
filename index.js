@@ -284,14 +284,12 @@ client.once("ready", async () => {
 
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-  if (COMMAND_GUILD_ID) {
-    await rest.put(
-      Routes.applicationGuildCommands(DISCORD_APP_ID, COMMAND_GUILD_ID),
-      { body: COMMANDS }
-    );
-    console.log("Slash commands registered for guild:", COMMAND_GUILD_ID);
-  } else {
-    console.log("COMMAND_GUILD_ID not set; skipping guild command registration.");
+  await rest.put(
+  Routes.applicationCommands(DISCORD_APP_ID),
+  { body: COMMANDS }
+);
+
+console.log("Global slash commands registered.");
   }
 });
 
