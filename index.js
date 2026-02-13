@@ -290,7 +290,6 @@ client.once("ready", async () => {
 );
 
 console.log("Global slash commands registered.");
-  }
 });
 
 // ===== AUTO RUMBLE PAYOUT =====
