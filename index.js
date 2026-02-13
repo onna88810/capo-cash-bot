@@ -79,7 +79,7 @@ function bjCanSplit(hand) {
 }
 
 function bjGameKey(guildId, userId, channelId) {
-  return `${guildId}:${channelId}:${userId}`;
+  return `${guildId}_${channelId}_${userId}`; // no colons
 }
 
 function bjIsExpired(state) {
