@@ -542,13 +542,345 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
   }
+// ===== Blackjack buttons (must be BEFORE isChatInputCommand return) =====
+if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
+  try {
+    await interaction.deferUpdate();
 
+    const [, action, key] = interaction.customId.split(":");
+    const state = BJ_GAMES.get(key);
+
+    if (!state) {
+      return interaction.editReply({ content: "⚠️ This blackjack game is no longer active.", components: [] });
+    }
+    if (interaction.user.id !== state.userId) {
+      return interaction.followUp({ content: "🚫 This isn’t your blackjack game.", ephemeral: true });
+    }
+    if (bjIsExpired(state)) {
+      BJ_GAMES.delete(key);
+      return interaction.editReply({ content: "⏳ This blackjack game expired. Start a new one with `/blackjack`.", components: [] });
+    }
+
+    const guildId = state.guildId;
+    const cfg = await getConfig(guildId);
+    const currency = BJ_PAGE_CURRENCY(cfg);
+
+    const currentHand = state.hands[state.activeHandIndex];
+
+    const dealerPlay = () => {
+      while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
+    };
+
+    const settleHand = (hand) => {
+      const ps = bjScore(hand);
+      const ds = bjScore(state.dealerHand);
+      if (ps > 21) return "lose";
+      if (ds > 21) return "win";
+      if (ps > ds) return "win";
+      if (ps === ds) return "push";
+      return "lose";
+    };
+
+    const computePayout = () => {
+      let payout = 0;
+      for (let i = 0; i < state.hands.length; i++) {
+        const res = state.handResults[i];
+        const handBet = state.handBets[i];
+        if (res === "win") payout += handBet * 2;   // normal win
+        else if (res === "push") payout += handBet; // return bet
+      }
+      return payout;
+    };
+
+    const finalizeGame = async () => {
+      dealerPlay();
+
+      for (let i = 0; i < state.hands.length; i++) {
+        if (!state.handResults[i]) state.handResults[i] = settleHand(state.hands[i]);
+      }
+
+      const payout = computePayout();
+
+      if (payout > 0) {
+        await applyBalanceChange({
+          guildId,
+          userId: state.userId,
+          amount: payout,
+          type: "bj_payout",
+          reason: "Blackjack result",
+          actorId: "system"
+        });
+      }
+
+      const row = await getUserRow(guildId, state.userId);
+      const newBal = Number(row?.balance ?? 0);
+
+      let resultLine = "";
+      if (state.hands.length === 1) {
+        const r = state.handResults[0];
+        resultLine = r === "win" ? "✅ You win!" : r === "push" ? "🤝 Push!" : "❌ You lose.";
+      } else {
+        const toEmoji = (r) => (r === "win" ? "✅" : r === "push" ? "🤝" : "❌");
+        resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
+      }
+
+      const embed = bjBuildEmbed(cfg, state, {
+        revealDealer: true,
+        footerText: `New Balance: ${newBal} ${currency}`
+      }).setDescription(
+        `**Final:** ${resultLine}\n` +
+        `**Payout:** ${payout} ${currency}`
+      );
+
+      BJ_GAMES.delete(state.key);
+
+      return interaction.editReply({ embeds: [embed], components: [] });
+    };
+
+    const goNextHandOrFinish = async () => {
+      if (state.hands.length === 2 && state.activeHandIndex === 0) {
+        state.activeHandIndex = 1;
+        state.messageLine = "Now playing Hand 2.";
+        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+      }
+      return finalizeGame();
+    };
+
+    if (action === "hit") {
+      currentHand.push(bjDrawCard());
+      state.messageLine = `➕ Hit on Hand ${state.activeHandIndex + 1}.`;
+
+      const total = bjScore(currentHand);
+      if (total > 21) {
+        state.handResults[state.activeHandIndex] = "lose";
+        state.messageLine = `💥 Bust on Hand ${state.activeHandIndex + 1}.`;
+        return goNextHandOrFinish();
+      }
+      if (total === 21) {
+        state.messageLine = `🎯 21 on Hand ${state.activeHandIndex + 1}! (Auto-stand)`;
+        return goNextHandOrFinish();
+      }
+
+      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+      return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+    }
+
+    if (action === "stand") {
+      state.messageLine = `🛑 Stood on Hand ${state.activeHandIndex + 1}.`;
+      return goNextHandOrFinish();
+    }
+
+    if (action === "double") {
+      const handIndex = state.activeHandIndex;
+
+      if (currentHand.length !== 2) {
+        return interaction.followUp({ content: "⚠️ You can only Double Down on your first two cards.", ephemeral: true });
+      }
+      if (state.didDoubleOnHand[handIndex]) {
+        return interaction.followUp({ content: "⚠️ You already doubled on this hand.", ephemeral: true });
+      }
+
+      const takeMore = await applyBalanceChange({
+        guildId,
+        userId: state.userId,
+        amount: -state.handBets[handIndex],
+        type: "bj_double",
+        reason: "Blackjack double down",
+        actorId: state.userId
+      });
+      if (!takeMore.ok) {
+        return interaction.followUp({ content: "❌ You don’t have enough Capo Cash to double down.", ephemeral: true });
+      }
+
+      state.didDoubleOnHand[handIndex] = true;
+      state.handBets[handIndex] = state.handBets[handIndex] * 2;
+      state.messageLine = `⏫ Double Down on Hand ${handIndex + 1}. (One card then stand)`;
+
+      currentHand.push(bjDrawCard());
+
+      if (bjScore(currentHand) > 21) {
+        state.handResults[handIndex] = "lose";
+        state.messageLine = `💥 Bust after Double Down on Hand ${handIndex + 1}.`;
+      }
+
+      return goNextHandOrFinish();
+    }
+
+    if (action === "split") {
+      if (state.didSplit) {
+        return interaction.followUp({ content: "⚠️ You can only split once.", ephemeral: true });
+      }
+      if (!bjCanSplit(currentHand)) {
+        return interaction.followUp({ content: "⚠️ Split is only available when your first two cards match in value.", ephemeral: true });
+      }
+
+      const takeMore = await applyBalanceChange({
+        guildId,
+        userId: state.userId,
+        amount: -state.bet,
+        type: "bj_split",
+        reason: "Blackjack split",
+        actorId: state.userId
+      });
+      if (!takeMore.ok) {
+        return interaction.followUp({ content: "❌ You don’t have enough Capo Cash to split.", ephemeral: true });
+      }
+
+      state.didSplit = true;
+
+      const [c1, c2] = currentHand;
+      state.hands = [[c1], [c2]];
+      state.hands[0].push(bjDrawCard());
+      state.hands[1].push(bjDrawCard());
+
+      state.handBets = [state.bet, state.bet];
+      state.handResults = [null, null];
+      state.didDoubleOnHand = [false, false];
+      state.activeHandIndex = 0;
+
+      state.messageLine = "✂️ Split! Now playing Hand 1.";
+
+      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+      return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+    }
+
+    return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
+  } catch (e) {
+    console.error("Blackjack button error:", e?.message || e);
+    return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
+  }
+}
   // --- Slash commands ---
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.guild) return;
 
   await interaction.deferReply();
+// BLACKJACK (interactive + dealer peek + 3:2)
+if (interaction.commandName === "blackjack") {
+  const bet = Math.max(1, interaction.options.getInteger("bet", true));
+  await upsertUserRow(guildId, callerId);
 
+  const key = bjGameKey(guildId, callerId, interaction.channelId);
+
+  const existing = BJ_GAMES.get(key);
+  if (existing && !bjIsExpired(existing)) {
+    return interaction.editReply("🃏 You already have an active blackjack game here. Finish it or wait for it to expire.");
+  }
+  BJ_GAMES.delete(key);
+
+  // take bet up front
+  const take = await applyBalanceChange({
+    guildId,
+    userId: callerId,
+    amount: -bet,
+    type: "bj_bet",
+    reason: "Blackjack bet",
+    actorId: callerId
+  });
+  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+
+  const player = [bjDrawCard(), bjDrawCard()];
+  const dealer = [bjDrawCard(), bjDrawCard()];
+
+  // immediate dealer peek for blackjack
+  const cfg = await getConfig(guildId);
+  const currency = BJ_PAGE_CURRENCY(cfg);
+
+  const playerScore = bjScore(player);
+  const dealerScore = bjScore(dealer);
+  const playerBJ = player.length === 2 && playerScore === 21;
+  const dealerBJ = dealer.length === 2 && dealerScore === 21;
+
+  if (playerBJ || dealerBJ) {
+    let result = "push";
+    if (playerBJ && !dealerBJ) result = "win";
+    else if (!playerBJ && dealerBJ) result = "lose";
+
+    // bet already deducted; blackjack win pays 3:2 => return 2.5x bet
+    let payout = 0;
+    if (result === "win") payout = Math.floor(bet * 2.5);
+    else if (result === "push") payout = bet;
+
+    if (payout > 0) {
+      await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: payout,
+        type: "bj_payout",
+        reason: "Blackjack (natural)",
+        actorId: "system"
+      });
+    }
+
+    const row = await getUserRow(guildId, callerId);
+    const newBal = Number(row?.balance ?? 0);
+
+    const profit = result === "win" ? (payout - bet) : result === "push" ? 0 : -bet;
+
+    const headline =
+      result === "win"
+        ? "🂡 **BLACKJACK!** Pays **3:2** ✅"
+        : result === "lose"
+        ? "💀 **Dealer has Blackjack.**"
+        : "🤝 **Double Blackjack — Push.**";
+
+    const outcomeLine =
+      result === "win"
+        ? `You win **+${profit}** ${currency}!`
+        : result === "lose"
+        ? `You lose **${bet}** ${currency}.`
+        : `Your bet was returned.`;
+
+    const tempState = {
+      bet,
+      dealerHand: dealer,
+      hands: [player],
+      activeHandIndex: 0,
+      handBets: [bet],
+      messageLine: headline
+    };
+
+    const embed = bjBuildEmbed(cfg, tempState, {
+      revealDealer: true,
+      footerText: `New Balance: ${newBal} ${currency}`
+    }).setDescription(
+      `${headline}\n${outcomeLine}\n\n**Bet:** ${bet} ${currency}\n**Payout:** ${payout} ${currency}`
+    );
+
+    return interaction.editReply({ embeds: [embed], components: [] });
+  }
+
+  const state = {
+    key,
+    createdAt: Date.now(),
+    guildId,
+    channelId: interaction.channelId,
+    userId: callerId,
+
+    bet,
+    dealerHand: dealer,
+
+    hands: [player],
+    activeHandIndex: 0,
+
+    didSplit: false,
+    handBets: [bet],
+    handResults: [null],
+    didDoubleOnHand: [false],
+
+    messageLine: "Choose your move."
+  };
+
+  BJ_GAMES.set(key, state);
+
+  const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+
+  return interaction.editReply({
+    embeds: [embed],
+    components: bjButtons(state)
+  });
+}
 // 🔒 LOCK / 🔓 UNLOCK COMMANDS
 if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
 
