@@ -756,6 +756,10 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
   if (!interaction.guild) return;
 
   await interaction.deferReply();
+  
+  const guildId = interaction.guild.id;
+  const callerId = interaction.user.id;
+
 // BLACKJACK (interactive + dealer peek + 3:2)
 if (interaction.commandName === "blackjack") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
