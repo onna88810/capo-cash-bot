@@ -914,9 +914,6 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
   }
 }
   
-  const guildId = interaction.guild.id;
-  const callerId = interaction.user.id;
-
   try {
     const cfg = await getConfig(guildId);
     const tz = cfg.tz || "America/Chicago";
