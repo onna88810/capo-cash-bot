@@ -547,7 +547,9 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
   try {
     await interaction.deferUpdate();
 
-    const [, action, key] = interaction.customId.split(":");
+    const parts = interaction.customId.split(":");
+    const action = parts[1];
+    const key = parts.slice(2).join(":");
     const state = BJ_GAMES.get(key);
 
     if (!state) {
