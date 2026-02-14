@@ -762,6 +762,30 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
   const guildId = interaction.guild.id;
   const callerId = interaction.user.id;
 
+// ===== RUMBLE (admin) =====
+if (interaction.commandName === "rumble") {
+  const sub = interaction.options.getSubcommand();
+  const guildId = interaction.guild.id;
+
+  if (sub === "payoutamount") {
+    const amount = interaction.options.getInteger("amount", true);
+
+    const { error } = await supabase
+      .from("config")
+      .update({ rumble_win_amount: amount })
+      .eq("guild_id", guildId);
+
+    if (error) {
+      console.error("Rumble payout update error:", error);
+      return interaction.editReply("❌ Failed to update payout amount.");
+    }
+
+    return interaction.editReply(
+      `✅ Rumble payout amount set to **${amount} Capo Cash** server-wide.`
+    );
+  }
+}
+
 // BLACKJACK (interactive + dealer peek + 3:2)
 if (interaction.commandName === "blackjack") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
