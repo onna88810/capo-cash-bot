@@ -469,7 +469,7 @@ client.on("messageCreate", async (message) => {
 
       const tpl =
         cfg.rumble_announce_template ||
-        "🏆 {user} was awarded **{amount} {currency}** for winning **Rumble Royals**! 💸";
+        "<a:CC:1472329566289657890>{user} was awarded **{amount} {currency}** for winning **Rumble Royale**!<a:CC:1472329566289657890> ";
 
       const announce = tpl
         .replaceAll("{user}", `<@${winnerId}>`)
