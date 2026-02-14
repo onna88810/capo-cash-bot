@@ -89,23 +89,21 @@ new SlashCommandBuilder()
   .setDescription("Unlock the current channel (restore Send Messages for configured roles)"
     ),
   
-  // CONFIG
-  new SlashCommandBuilder()
-    .setName("config")
-    .setDescription("Admin config for Capo Cash")
-    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-    .addSubcommand((sub) =>
-      sub
-        .setName("rumble_message")
-        .setDescription("Set the rumble winner announcement message template")
-        .addStringOption((opt) =>
-          opt
-            .setName("template")
-            .setDescription("Use {user} {amount} {currency}")
-            .setRequired(true)
-        )
-    )
-    .addSubcommand((sub) =>
-      sub.setName("view").setDescription("View current config")
-    )
+  // RUMBLE (admin)
+new SlashCommandBuilder()
+  .setName("rumble")
+  .setDescription("Rumble settings (admin)")
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+  .addSubcommand(sub =>
+    sub
+      .setName("payoutamount")
+      .setDescription("Set the server-wide Capo Cash payout for Rumble wins")
+      .addIntegerOption(opt =>
+        opt
+          .setName("amount")
+          .setDescription("New payout amount (ex: 75)")
+          .setRequired(true)
+          .setMinValue(1)
+      )
+  ),
 ].map((c) => c.toJSON());
