@@ -1002,9 +1002,9 @@ if (interaction.commandName === "balance") {
         actorId: callerId
       });
 
-      return interaction.editReply(
-        `✅ Daily claimed: **+${payout}** ${cfg.currency_name} (streak **${streak}**)`
-      );
+    return interaction.editReply(
+  `✅ Daily claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(streak)}**)`
+);
     }
 
     // WEEKLY
