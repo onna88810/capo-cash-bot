@@ -691,7 +691,7 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
         state.activeHandIndex = 1;
         state.messageLine = "Now playing Hand 2.";
         const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+        return interaction.editReply({ embeds: [embed], components: bjReplayButtons(state.bet, state.key) });
       }
       return finalizeGame();
     };
