@@ -945,13 +945,15 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     const cfg = await getConfig(guildId);
     const tz = cfg.tz || "America/Chicago";
 
-    // BALANCE
+   // BALANCE
 if (interaction.commandName === "balance") {
   const row =
     (await getUserRow(guildId, callerId)) || (await upsertUserRow(guildId, callerId));
 
+  const formattedBalance = Number(row.balance ?? 0).toLocaleString();
+
   return interaction.editReply(
-    `💸 <@${callerId}> has **${row.balance ?? 0}** ${cfg.currency_name} <a:CC:1472374417920229398>`
+    `💸 <@${callerId}> has **${formattedBalance}** ${cfg.currency_name} <a:CC:1472374417920229398>`
   );
 }
 
