@@ -48,7 +48,6 @@ import { ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType } from 
 
 const CC_EMOJI = "<a:CC:1472374417920229398>";
 const fmt = (n) => Number(n || 0).toLocaleString("en-US");
-    )
   ];
 }
 
