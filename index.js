@@ -130,9 +130,32 @@ function bjButtons(state) {
   return [row];
 }
 
+/**
+ * NEW: Replay buttons helper
+ * - same bet includes the bet in the customId so we can reuse it
+ * - new bet sends a placeholder; we’ll prompt the user for a new bet in the handler
+ */
+function bjReplayButtons(lastBet) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bjra:same:${lastBet}`)
+        .setLabel("Play Again (Same Bet)")
+        .setStyle(ButtonStyle.Success),
+
+      new ButtonBuilder()
+        .setCustomId("bjra:new:0")
+        .setLabel("Play Again (New Bet)")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
 function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}) {
   const currency = BJ_PAGE_CURRENCY(cfg);
-  const betText = state.hands.length === 2 ? `${state.handBets[0]} + ${state.handBets[1]} (split)` : `${state.handBets[0]}`;
+  const betText = state.hands.length === 2
+    ? `${state.handBets[0]} + ${state.handBets[1]} (split)`
+    : `${state.handBets[0]}`;
 
   const fields = [];
 
@@ -178,6 +201,7 @@ function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}
 
   return embed;
 }
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
