@@ -946,13 +946,14 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     const tz = cfg.tz || "America/Chicago";
 
     // BALANCE
-    if (interaction.commandName === "balance") {
-      const row =
-        (await getUserRow(guildId, callerId)) || (await upsertUserRow(guildId, callerId));
-      return interaction.editReply(
-        `💸 <@${callerId}> has **${row.balance ?? 0}** ${cfg.currency_name}.`
-      );
-    }
+if (interaction.commandName === "balance") {
+  const row =
+    (await getUserRow(guildId, callerId)) || (await upsertUserRow(guildId, callerId));
+
+  return interaction.editReply(
+    `💸 <@${callerId}> has **${row.balance ?? 0}** ${cfg.currency_name} <a:CC:1472374417920229398>`
+  );
+}
 
     // DAILY
     if (interaction.commandName === "daily") {
