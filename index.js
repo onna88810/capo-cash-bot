@@ -596,6 +596,23 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
 
     const parts = interaction.customId.split(":");
     const action = parts[1];
+    // REPLAY: same bet
+if (action === "replay_same") {
+  const lastBet = Number(parts[2]);
+
+  return interaction.reply({
+    content: `🎲 Starting new blackjack game with **${lastBet.toLocaleString("en-US")}** ${cfg.currency_name} ${CC_EMOJI}\n\nUse \`/blackjack bet:${lastBet}\``,
+    ephemeral: true
+  });
+}
+
+// REPLAY: new bet
+if (action === "replay_new") {
+  return interaction.reply({
+    content: `🎲 Choose a new bet using \`/blackjack\` and enter your amount ${CC_EMOJI}`,
+    ephemeral: true
+  });
+}
     const key = parts.slice(2).join(":");
     const state = BJ_GAMES.get(key);
 
