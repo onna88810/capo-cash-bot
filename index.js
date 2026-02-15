@@ -683,7 +683,7 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
 
       BJ_GAMES.delete(state.key);
 
-      return interaction.editReply({ embeds: [embed], components: [] });
+   return interaction.editReply({ embeds: [embed], components: bjReplayButtons(bet, key) });
     };
 
     const goNextHandOrFinish = async () => {
