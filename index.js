@@ -468,7 +468,7 @@ client.on("messageCreate", async (message) => {
       }
 
       const tpl =
-        "<a:CC:1472329566289657890>{user} was awarded **{amount} {currency}** for winning **Rumble Royale**!<a:CC:1472329566289657890> ";
+        "<a:CC:1472329566289657890> {user} was awarded **{amount} {currency}** for winning **Rumble Royale**! <a:CC:1472329566289657890> ";
 
       const announce = tpl
         .replaceAll("{user}", `<@${winnerId}>`)
@@ -1087,7 +1087,7 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
       if (sub === "view") {
         const tpl =
           cfg.rumble_announce_template ||
-          "<a:CC:1472329566289657890>{user} was awarded **{amount} {currency}** for winning **Rumble Royale**!<a:CC:1472329566289657890>";
+          "<a:CC:1472329566289657890> {user} was awarded **{amount} {currency}** for winning **Rumble Royale**! <a:CC:1472329566289657890>";
 
         return interaction.editReply(
           `⚙️ **Capo Cash Config**\n` +
