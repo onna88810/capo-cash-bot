@@ -1140,41 +1140,55 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
       });
     }
 
-    // COINFLIP
-    if (interaction.commandName === "coinflip") {
-      const bet = Math.max(1, interaction.options.getInteger("bet", true));
-      const choice = interaction.options.getString("choice", true);
+ // COINFLIP
+if (interaction.commandName === "coinflip") {
+  const bet = Math.max(1, interaction.options.getInteger("bet", true));
+  const choice = interaction.options.getString("choice", true);
 
-      await upsertUserRow(guildId, callerId);
+  await upsertUserRow(guildId, callerId);
 
-      const take = await applyBalanceChange({
-        guildId,
-        userId: callerId,
-        amount: -bet,
-        type: "coinflip_bet",
-        reason: `Coinflip bet (${choice})`,
-        actorId: callerId
-      });
-      if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+  const take = await applyBalanceChange({
+    guildId,
+    userId: callerId,
+    amount: -bet,
+    type: "coinflip_bet",
+    reason: `Coinflip bet (${choice})`,
+    actorId: callerId
+  });
+  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
 
-      const flip = Math.random() < 0.5 ? "heads" : "tails";
-      const won = flip === choice;
+  const flip = Math.random() < 0.5 ? "heads" : "tails";
+  const won = flip === choice;
 
-      if (won) {
-        await applyBalanceChange({
-          guildId,
-          userId: callerId,
-          amount: bet * 2,
-          type: "coinflip_win",
-          reason: `Coinflip won (${flip})`,
-          actorId: "system"
-        });
-        return interaction.editReply(`🪙 It landed **${flip}** — ✅ you won! (**+${bet}** profit)`);
-      }
+  if (won) {
+    await applyBalanceChange({
+      guildId,
+      userId: callerId,
+      amount: bet * 2,
+      type: "coinflip_win",
+      reason: `Coinflip won (${flip})`,
+      actorId: "system"
+    });
 
-      return interaction.editReply(`🪙 It landed **${flip}** — ❌ you lost (**-${bet}**)`);
-    }
+    const row = await getUserRow(guildId, callerId);
+    const newBal = Number(row?.balance ?? 0);
 
+    return interaction.editReply(
+      `🪙 It landed on **${flip}**!\n` +
+      `<@${callerId}> won **${bet} ${cfg.currency_name}**\n` +
+      `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+    );
+  }
+
+  const row = await getUserRow(guildId, callerId);
+  const newBal = Number(row?.balance ?? 0);
+
+  return interaction.editReply(
+    `🪙 It landed on **${flip}**!\n` +
+    `<@${callerId}> lost **${bet} ${cfg.currency_name}**\n` +
+    `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+  );
+}
     // DICE
 if (interaction.commandName === "dice") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
