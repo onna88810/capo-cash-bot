@@ -155,7 +155,7 @@ function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}
   const currency = BJ_PAGE_CURRENCY(cfg);
   const betText = state.hands.length === 2
     ? `${state.handBets[0]} + ${state.handBets[1]} (split)`
-    : `${state.handBets[0]}`;
+    : `${Number(state.handBets[0]).toLocaleString("en-US")}`
 
   const fields = [];
 
