@@ -1,11 +1,17 @@
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 export const COMMANDS = [
-  // BALANCE
-  new SlashCommandBuilder()
-    .setName("balance")
-    .setDescription("Check your Capo Cash balance"),
-
+// BALANCE
+new SlashCommandBuilder()
+  .setName("balance")
+  .setDescription("Check your balance (or someone else's)")
+  .addUserOption(opt =>
+    opt
+      .setName("user")
+      .setDescription("User to check (optional)")
+      .setRequired(false)
+  ),
+  
   // DAILY
   new SlashCommandBuilder()
     .setName("daily")
