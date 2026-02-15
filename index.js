@@ -947,13 +947,13 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
    // BALANCE
 if (interaction.commandName === "balance") {
-  const row =
-    (await getUserRow(guildId, callerId)) || (await upsertUserRow(guildId, callerId));
+  const target = interaction.options.getUser("user") ?? interaction.user;
 
-  const formattedBalance = Number(row.balance ?? 0).toLocaleString();
+  const row =
+    (await getUserRow(guildId, target.id)) || (await upsertUserRow(guildId, target.id));
 
   return interaction.editReply(
-    `💸 <@${callerId}> has **${formattedBalance}** ${cfg.currency_name} <a:CC:1472374417920229398>`
+    `💸 <@${target.id}> has **${Number(row.balance ?? 0).toLocaleString("en-US")}** ${cfg.currency_name} <a:CC:1472374417920229398>`
   );
 }
 
