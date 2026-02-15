@@ -468,7 +468,7 @@ client.on("messageCreate", async (message) => {
       }
 
       const tpl =
-        "<a:CC:1472329566289657890> {user} was awarded **{amount} {currency}** for winning **Rumble Royale**! <a:CC:1472329566289657890> ";
+        "<a:CC:1472374417920229398> {user} was awarded **{amount} {currency}** for winning **Rumble Royale**! <a:CC:1472374417920229398> ";
 
       const announce = tpl
         .replaceAll("{user}", `<@${winnerId}>`)
