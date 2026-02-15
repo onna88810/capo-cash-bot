@@ -1240,40 +1240,59 @@ if (interaction.commandName === "dice") {
 }
 
     // SLOTS
-    if (interaction.commandName === "slots") {
-      const bet = Math.max(1, interaction.options.getInteger("bet", true));
-      await upsertUserRow(guildId, callerId);
+if (interaction.commandName === "slots") {
+  const bet = Math.max(1, interaction.options.getInteger("bet", true));
+  await upsertUserRow(guildId, callerId);
 
-      const take = await applyBalanceChange({
-        guildId,
-        userId: callerId,
-        amount: -bet,
-        type: "slots_bet",
-        reason: "Slots bet",
-        actorId: callerId
-      });
-      if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+  const take = await applyBalanceChange({
+    guildId,
+    userId: callerId,
+    amount: -bet,
+    type: "slots_bet",
+    reason: "Slots bet",
+    actorId: callerId
+  });
+  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
 
-      const symbols = ["🍒", "🍋", "💎", "7️⃣", "🔔"];
-      const spin = () => symbols[Math.floor(Math.random() * symbols.length)];
+  const symbols = ["🍒", "🍋", "💎", "7️⃣", "🔔"];
+  const spin = () => symbols[Math.floor(Math.random() * symbols.length)];
 
-      const a = spin(), b = spin(), c = spin();
-      const reel = `🎰 **${a} ${b} ${c}**`;
+  const a = spin(), b = spin(), c = spin();
+  const reel = `🎰 **${a} ${b} ${c}**`;
 
-      let payout = 0;
-      if (a === b && b === c) payout = bet * 5;
-      else if (a === b || b === c || a === c) payout = bet * 2;
+  let payout = 0;
+  if (a === b && b === c) payout = bet * 5;
+  else if (a === b || b === c || a === c) payout = bet * 2;
 
-      if (payout > 0) {
-        await applyBalanceChange({
-          guildId,
-          userId: callerId,
-          amount: payout,
-          type: "slots_win",
-          reason: `Slots ${a}${b}${c}`,
-          actorId: "system"
-        });
-      }
+  if (payout > 0) {
+    await applyBalanceChange({
+      guildId,
+      userId: callerId,
+      amount: payout,
+      type: "slots_win",
+      reason: `Slots ${a}${b}${c}`,
+      actorId: "system"
+    });
+
+    const row = await getUserRow(guildId, callerId);
+    const newBal = Number(row?.balance ?? 0);
+
+    return interaction.editReply(
+      `${reel}\n` +
+      `<@${callerId}> won **${payout - bet} ${cfg.currency_name}**\n` +
+      `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+    );
+  }
+
+  const row = await getUserRow(guildId, callerId);
+  const newBal = Number(row?.balance ?? 0);
+
+  return interaction.editReply(
+    `${reel}\n` +
+    `<@${callerId}> lost **${bet} ${cfg.currency_name}**\n` +
+    `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+  );
+}
 
       if (payout === 0) return interaction.editReply(`${reel}\n❌ You lost **${bet}**.`);
       return interaction.editReply(`${reel}\n✅ You won! (**+${payout - bet}** profit)`);
