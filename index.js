@@ -1055,8 +1055,8 @@ if (interaction.commandName === "balance") {
       });
 
       return interaction.editReply(
-        `✅ Weekly claimed: **+${payout}** ${cfg.currency_name} (streak **${streak}**)`
-      );
+  `✅ Weekly claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(streak)}**)`
+);
     }
 
     // GIVE (admin only)
