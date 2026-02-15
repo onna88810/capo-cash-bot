@@ -559,20 +559,29 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
 
     const parts = interaction.customId.split(":");
     const action = parts[1];
-    // REPLAY: same bet
+ // REPLAY: same bet (no auto-start, just tells them what to type)
 if (action === "replay_same") {
-  const lastBet = Number(parts[2]);
+  const lastBet = Number(parts[2] || 0);
+  const cfg2 = await getConfig(interaction.guildId);
+  const currencyName = cfg2?.currency_name || "Capo Cash";
 
-  return interaction.reply({
-    content: `🎲 Starting new blackjack game with **${lastBet.toLocaleString("en-US")}** ${cfg.currency_name} ${CC_EMOJI}\n\nUse \`/blackjack bet:${lastBet}\``,
+  return interaction.followUp({
+    content:
+      `🎲 Want to run it back?\n` +
+      `Type: \`/blackjack bet:${lastBet}\`  (${fmtNum(lastBet)} ${currencyName} ${COIN})`,
     ephemeral: true
   });
 }
 
-// REPLAY: new bet
+// REPLAY: new bet (no auto-start)
 if (action === "replay_new") {
-  return interaction.reply({
-    content: `🎲 Choose a new bet using \`/blackjack\` and enter your amount ${CC_EMOJI}`,
+  const cfg2 = await getConfig(interaction.guildId);
+  const currencyName = cfg2?.currency_name || "Capo Cash";
+
+  return interaction.followUp({
+    content:
+      `🎲 Choose your new bet:\n` +
+      `Type: \`/blackjack bet:<amount>\` (${currencyName} ${COIN})`,
     ephemeral: true
   });
 }
