@@ -1076,8 +1076,14 @@ if (interaction.commandName === "balance") {
       });
 
       if (!res.ok) return interaction.editReply("❌ Could not give cash.");
-      return interaction.editReply(`✅ Gave <@${target.id}> **+${amt}** ${cfg.currency_name}.`);
-    }
+
+// get updated balance
+const row = await getUserRow(guildId, target.id);
+const newBal = Number(row?.balance ?? 0);
+
+return interaction.editReply(
+  `✅ Gave <@${target.id}> **+${amt}** ${cfg.currency_name}. New balance **${newBal}** ${cfg.currency_name} <a:CC:1472374417920229398>`
+);
 
     // CONFIG (admin)
     if (interaction.commandName === "config") {
