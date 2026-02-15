@@ -1176,36 +1176,54 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     }
 
     // DICE
-    if (interaction.commandName === "dice") {
-      const bet = Math.max(1, interaction.options.getInteger("bet", true));
-      await upsertUserRow(guildId, callerId);
+if (interaction.commandName === "dice") {
+  const bet = Math.max(1, interaction.options.getInteger("bet", true));
+  await upsertUserRow(guildId, callerId);
 
-      const take = await applyBalanceChange({
-        guildId,
-        userId: callerId,
-        amount: -bet,
-        type: "dice_bet",
-        reason: "Dice bet",
-        actorId: callerId
-      });
-      if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+  const take = await applyBalanceChange({
+    guildId,
+    userId: callerId,
+    amount: -bet,
+    type: "dice_bet",
+    reason: "Dice bet",
+    actorId: callerId
+  });
 
-      const roll = Math.floor(Math.random() * 6) + 1;
+  if (!take.ok) {
+    return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+  }
 
-      if (roll === 6) {
-        await applyBalanceChange({
-          guildId,
-          userId: callerId,
-          amount: bet * 6,
-          type: "dice_win",
-          reason: "Rolled a 6",
-          actorId: "system"
-        });
-        return interaction.editReply(`🎲 You rolled **${roll}** — ✅ JACKPOT! (**+${bet * 5}** profit)`);
-      }
+  const roll = Math.floor(Math.random() * 6) + 1;
+  const emoji = "<a:CC:1472374417920229398>";
 
-      return interaction.editReply(`🎲 You rolled **${roll}** — ❌ you lost (**-${bet}**)`);
-    }
+  let payout = 0;
+  let resultText = "";
+
+  if (roll === 6) {
+    payout = bet * 6;
+
+    await applyBalanceChange({
+      guildId,
+      userId: callerId,
+      amount: payout,
+      type: "dice_win",
+      reason: "Rolled a 6",
+      actorId: "system"
+    });
+
+    const profit = payout - bet;
+    resultText = `🎲 You rolled **${roll}** — ✅ <@${callerId}> won **${profit}**!`;
+  } else {
+    resultText = `🎲 You rolled **${roll}** — ❌ <@${callerId}> lost **${bet}**.`;
+  }
+
+  const row = await getUserRow(guildId, callerId);
+  const newBal = Number(row?.balance ?? 0);
+
+  return interaction.editReply(
+    `${resultText}\n💰 New Balance: **${newBal}** ${emoji}`
+  );
+}
 
     // SLOTS
     if (interaction.commandName === "slots") {
