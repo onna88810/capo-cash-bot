@@ -48,8 +48,6 @@ import { ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType } from 
 
 const CC_EMOJI = "<a:CC:1472374417920229398>";
 const fmt = (n) => Number(n || 0).toLocaleString("en-US");
-  ];
-}
 
 const SUITS = ["♠", "♥", "♦", "♣"];
 const RANKS = ["A","2","3","4","5","6","7","8","9","10","J","Q","K"];
