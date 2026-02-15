@@ -34,6 +34,7 @@ const DISCORD_APP_ID = process.env.DISCORD_APP_ID;
 const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
 
 const COIN = "<a:CC:1472374417920229398>";
+const fmtNum = (n) => Number(n ?? 0).toLocaleString("en-US");
 
 if (!DISCORD_TOKEN || !DISCORD_APP_ID) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_APP_ID env vars.");
