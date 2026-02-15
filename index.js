@@ -781,16 +781,16 @@ if (action === "replay_new") {
     return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
   }
 }
-function bjReplayButtons(lastBet) {
+function bjReplayButtons(lastBet, key) {
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`bj:replay_same:${lastBet}`)
+        .setCustomId(`bj:replay_same:${lastBet}:${key}`)
         .setLabel("Play again (same bet)")
         .setStyle(ButtonStyle.Success),
 
       new ButtonBuilder()
-        .setCustomId("bj:replay_new:0")
+        .setCustomId(`bj:replay_new:0:${key}`)
         .setLabel("Play again (new bet)")
         .setStyle(ButtonStyle.Secondary)
     )
