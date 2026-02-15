@@ -780,6 +780,21 @@ if (action === "replay_new") {
     return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
   }
 }
+function bjReplayButtons(lastBet) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bj:replay_same:${lastBet}`)
+        .setLabel("Play again (same bet)")
+        .setStyle(ButtonStyle.Success),
+
+      new ButtonBuilder()
+        .setCustomId("bj:replay_new:0")
+        .setLabel("Play again (new bet)")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
 
   // --- Slash commands ---
   if (!interaction.isChatInputCommand()) return;
