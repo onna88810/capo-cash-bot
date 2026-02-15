@@ -1296,7 +1296,6 @@ if (interaction.commandName === "slots") {
 
       if (payout === 0) return interaction.editReply(`${reel}\n❌ You lost **${bet}**.`);
       return interaction.editReply(`${reel}\n✅ You won! (**+${payout - bet}** profit)`);
-    }
       } catch (e) {
     console.error("Interaction error:", e?.message || e);
 
