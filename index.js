@@ -655,11 +655,12 @@ if (action === "replay_new") {
 
       const embed = bjBuildEmbed(cfg, state, {
         revealDealer: true,
-        footerText: `New Balance: ${newBal} ${currency}`
-      }).setDescription(
-        `**Final:** ${resultLine}\n` +
-        `**Payout:** ${payout} ${currency}`
-      );
+        footerText: `New Balance: ${fmt(newBal)} ${currency} ${CC_EMOJI}`
+}).setDescription(
+  `**Final:** ${resultLine}\n` +
+  `**Payout:** ${fmt(payout)} ${currency}\n` +
+  `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
+);
 
       BJ_GAMES.delete(state.key);
 
