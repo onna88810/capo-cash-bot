@@ -755,6 +755,23 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
     return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
   }
 }
+const CC_EMOJI = "<a:CC:1472374417920229398>";
+
+function bjReplayButtons(lastBet) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bjra:same:${lastBet}`)
+        .setLabel("Play again (same bet)")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("bjra:new:0")
+        .setLabel("Play again (new bet)")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
   // --- Slash commands ---
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.guild) return;
