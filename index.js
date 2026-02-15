@@ -48,19 +48,6 @@ import { ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType } from 
 
 const CC_EMOJI = "<a:CC:1472374417920229398>";
 const fmt = (n) => Number(n || 0).toLocaleString("en-US");
-
-function bjReplayButtons(lastBet, key) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`bj:replay_same:${lastBet}:${key}`)
-        .setLabel(`Play Again (${fmt(lastBet)})`)
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId(`bj:replay_new:0:${key}`)
-        .setLabel("Play Again (New Bet)")
-        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }
@@ -149,27 +136,6 @@ function bjButtons(state) {
   );
 
   return [row];
-}
-
-/**
- * NEW: Replay buttons helper
- * - same bet includes the bet in the customId so we can reuse it
- * - new bet sends a placeholder; we’ll prompt the user for a new bet in the handler
- */
-function bjReplayButtons(lastBet) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`bjra:same:${lastBet}`)
-        .setLabel("Play Again (Same Bet)")
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId("bjra:new:0")
-        .setLabel("Play Again (New Bet)")
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
 }
 
 function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}) {
