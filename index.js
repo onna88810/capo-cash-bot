@@ -842,6 +842,10 @@ if (interaction.commandName === "blackjack") {
   }
   BJ_GAMES.delete(key);
 
+  // ✅ get cfg BEFORE using it anywhere
+  const cfg = await getConfig(guildId);
+  const currency = BJ_PAGE_CURRENCY(cfg);
+
   // take bet up front
   const take = await applyBalanceChange({
     guildId,
@@ -851,30 +855,17 @@ if (interaction.commandName === "blackjack") {
     reason: "Blackjack bet",
     actorId: callerId
   });
-  if (!take.ok) return interaction.editReply(`❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`);
+  if (!take.ok) {
+    return interaction.editReply(`❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`);
+  }
 
   const player = [bjDrawCard(), bjDrawCard()];
   const dealer = [bjDrawCard(), bjDrawCard()];
-
-  const cfg = await getConfig(guildId);
-  const currency = BJ_PAGE_CURRENCY(cfg);
 
   const playerScore = bjScore(player);
   const dealerScore = bjScore(dealer);
   const playerBJ = player.length === 2 && playerScore === 21;
   const dealerBJ = dealer.length === 2 && dealerScore === 21;
-
-  // helper: replay buttons (same bet / new bet)
-  const replayRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`bjra:same:${bet}:${key}`)
-      .setLabel(`Play Again (${fmt(bet)})`)
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`bjra:new:0:${key}`)
-      .setLabel("Play Again (New Bet)")
-      .setStyle(ButtonStyle.Secondary)
-  );
 
   // Natural blackjack handling (pays 3:2)
   if (playerBJ || dealerBJ) {
@@ -912,9 +903,9 @@ if (interaction.commandName === "blackjack") {
 
     const outcomeLine =
       result === "win"
-        ? `You win **+${fmt(profit)}** ${currency}!`
+        ? `You win **+${new Intl.NumberFormat("en-US").format(profit)}** ${currency}!`
         : result === "lose"
-        ? `You lose **${fmt(bet)}** ${currency}.`
+        ? `You lose **${new Intl.NumberFormat("en-US").format(bet)}** ${currency}.`
         : `Your bet was returned.`;
 
     const tempState = {
@@ -928,14 +919,15 @@ if (interaction.commandName === "blackjack") {
 
     const embed = bjBuildEmbed(cfg, tempState, {
       revealDealer: true,
-      footerText: `New Balance: ${fmt(newBal)} ${currency} ${CC_EMOJI}`
+      footerText: `New Balance: ${new Intl.NumberFormat("en-US").format(newBal)} ${currency} ${CC_EMOJI}`
     }).setDescription(
       `${headline}\n${outcomeLine}\n\n` +
-      `**Bet:** ${fmt(bet)} ${currency}\n` +
-      `**Payout:** ${fmt(payout)} ${currency}`
+      `**Bet:** ${new Intl.NumberFormat("en-US").format(bet)} ${currency}\n` +
+      `**Payout:** ${new Intl.NumberFormat("en-US").format(payout)} ${currency}`
     );
 
-    return interaction.editReply({ embeds: [embed], components: [replayRow] });
+    // ✅ show play again buttons even on natural blackjack
+    return interaction.editReply({ embeds: [embed], components: bjReplayButtons(bet) });
   }
 
   // Normal interactive game
@@ -969,7 +961,6 @@ if (interaction.commandName === "blackjack") {
     components: bjButtons(state)
   });
 }
-
 // 🔒 LOCK / 🔓 UNLOCK COMMANDS
 if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
 
