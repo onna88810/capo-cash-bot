@@ -810,12 +810,11 @@ if (interaction.commandName === "blackjack") {
     reason: "Blackjack bet",
     actorId: callerId
   });
-  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+  if (!take.ok) return interaction.editReply(`❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`);
 
   const player = [bjDrawCard(), bjDrawCard()];
   const dealer = [bjDrawCard(), bjDrawCard()];
 
-  // immediate dealer peek for blackjack
   const cfg = await getConfig(guildId);
   const currency = BJ_PAGE_CURRENCY(cfg);
 
@@ -824,6 +823,19 @@ if (interaction.commandName === "blackjack") {
   const playerBJ = player.length === 2 && playerScore === 21;
   const dealerBJ = dealer.length === 2 && dealerScore === 21;
 
+  // helper: replay buttons (same bet / new bet)
+  const replayRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`bjra:same:${bet}:${key}`)
+      .setLabel(`Play Again (${fmt(bet)})`)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`bjra:new:0:${key}`)
+      .setLabel("Play Again (New Bet)")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Natural blackjack handling (pays 3:2)
   if (playerBJ || dealerBJ) {
     let result = "push";
     if (playerBJ && !dealerBJ) result = "win";
@@ -852,16 +864,16 @@ if (interaction.commandName === "blackjack") {
 
     const headline =
       result === "win"
-        ? "🂡 **BLACKJACK!** Pays **3:2** ✅"
+        ? `🂡 **BLACKJACK!** Pays **3:2** ✅ ${CC_EMOJI}`
         : result === "lose"
-        ? "💀 **Dealer has Blackjack.**"
-        : "🤝 **Double Blackjack — Push.**";
+        ? `💀 **Dealer has Blackjack.** ${CC_EMOJI}`
+        : `🤝 **Double Blackjack — Push.** ${CC_EMOJI}`;
 
     const outcomeLine =
       result === "win"
-        ? `You win **+${profit}** ${currency}!`
+        ? `You win **+${fmt(profit)}** ${currency}!`
         : result === "lose"
-        ? `You lose **${bet}** ${currency}.`
+        ? `You lose **${fmt(bet)}** ${currency}.`
         : `Your bet was returned.`;
 
     const tempState = {
@@ -875,14 +887,17 @@ if (interaction.commandName === "blackjack") {
 
     const embed = bjBuildEmbed(cfg, tempState, {
       revealDealer: true,
-      footerText: `New Balance: ${newBal} ${currency}`
+      footerText: `New Balance: ${fmt(newBal)} ${currency} ${CC_EMOJI}`
     }).setDescription(
-      `${headline}\n${outcomeLine}\n\n**Bet:** ${bet} ${currency}\n**Payout:** ${payout} ${currency}`
+      `${headline}\n${outcomeLine}\n\n` +
+      `**Bet:** ${fmt(bet)} ${currency}\n` +
+      `**Payout:** ${fmt(payout)} ${currency}`
     );
 
-    return interaction.editReply({ embeds: [embed], components: [] });
+    return interaction.editReply({ embeds: [embed], components: [replayRow] });
   }
 
+  // Normal interactive game
   const state = {
     key,
     createdAt: Date.now(),
@@ -901,7 +916,7 @@ if (interaction.commandName === "blackjack") {
     handResults: [null],
     didDoubleOnHand: [false],
 
-    messageLine: "Choose your move."
+    messageLine: `Choose your move. ${CC_EMOJI}`
   };
 
   BJ_GAMES.set(key, state);
@@ -913,6 +928,7 @@ if (interaction.commandName === "blackjack") {
     components: bjButtons(state)
   });
 }
+
 // 🔒 LOCK / 🔓 UNLOCK COMMANDS
 if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
 
