@@ -807,7 +807,7 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
     components: bjButtons(newState)
   });
 }
-    const key = parts.slice(2).join(":");
+    const key = parts[3]; // the real BJ key from the button
     const state = BJ_GAMES.get(key);
 
     if (!state) {
