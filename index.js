@@ -557,7 +557,6 @@ client.on("interactionCreate", async (interaction) => {
 // ===== Blackjack buttons (must be BEFORE isChatInputCommand return) =====
 if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
   try {
-    await interaction.deferUpdate();
 
     const parts = interaction.customId.split(":");
 const action = parts[1];
