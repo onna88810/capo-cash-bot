@@ -1007,7 +1007,8 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
     }
 
     return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
-  } catch (e) {
+  
+} catch (e) {
     console.error("Blackjack button error:", e?.message || e);
     return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
   }
