@@ -731,8 +731,8 @@ const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
 return interaction.editReply({ embeds: [embed], components: bjButtons(newState) });
 
   // deal
-  const player = [bjDrawCard(), bjDrawCard()];
-  const dealer = [bjDrawCard(), bjDrawCard()];
+  const newPlayer = [bjDrawCard(), bjDrawCard()];
+  const newDealer = [bjDrawCard(), bjDrawCard()];
 
   const playerScore = bjScore(player);
   const dealerScore = bjScore(dealer);
@@ -906,7 +906,7 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
 
       const embed = bjBuildEmbed(cfg, state, {
         revealDealer: true,
-        footerText: `New Balance: ${fmt(newBal)} ${currency} ${CC_EMOJI}`
+        footerText: `New Balance: ${fmt(newBal)} ${currency}`
 }).setDescription(
   `**Final:** ${resultLine}\n` +
   `**Payout:** ${fmt(payout)} ${currency}\n` +
