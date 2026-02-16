@@ -799,7 +799,7 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
 
   BJ_GAMES.set(key, newState);
 
-  const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
+  embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
 
   return interaction.editReply({
     embeds: [embed],
