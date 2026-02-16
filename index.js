@@ -586,21 +586,46 @@ if (action === "replay_same") {
   BJ_GAMES.delete(key);
 
   // take bet up front
-  const take = await applyBalanceChange({
-    guildId,
-    userId: callerId,
-    amount: -lastBet,
-    type: "bj_bet",
-    reason: "Blackjack bet (replay same)",
-    actorId: callerId
-  });
+const take = await applyBalanceChange({
+  guildId,
+  userId: callerId,
+  amount: -lastBet,
+  type: "bj_bet",
+  reason: "Blackjack bet (replay same)",
+  actorId: callerId
+});
+if (!take.ok) {
+  return interaction.editReply(`❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`);
+}
 
-  if (!take.ok) {
-    return interaction.editReply({
-      content: `❌ You don’t have enough ${currency} for **${fmt(lastBet)}**.`,
-      components: bjReplayButtons(lastBet) // keep buttons so they can try new bet
-    });
-  }
+const player = [bjDrawCard(), bjDrawCard()];
+const dealer = [bjDrawCard(), bjDrawCard()];
+
+const state = {
+  key,
+  createdAt: Date.now(),
+  guildId,
+  channelId: interaction.channelId,
+  userId: callerId,
+
+  bet: lastBet,
+  dealerHand: dealer,
+
+  hands: [player],
+  activeHandIndex: 0,
+
+  didSplit: false,
+  handBets: [lastBet],
+  handResults: [null],
+  didDoubleOnHand: [false],
+
+  messageLine: `Choose your move. ${CC_EMOJI}`
+};
+
+BJ_GAMES.set(key, state);
+
+const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
 
   // deal
   const player = [bjDrawCard(), bjDrawCard()];
