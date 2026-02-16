@@ -799,9 +799,10 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
 
   BJ_GAMES.set(key, newState);
 
-  embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
+  const replayEmbed = bjBuildEmbed(cfg, newState, { revealDealer: false });
 
   return interaction.editReply({
+  embeds: [replayEmbed],
     embeds: [embed],
     components: bjButtons(newState)
   });
