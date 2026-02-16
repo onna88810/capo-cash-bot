@@ -704,27 +704,6 @@ if (!take.ok) {
 const player = [bjDrawCard(), bjDrawCard()];
 const dealer = [bjDrawCard(), bjDrawCard()];
 
-const newState = {
-  key,
-  createdAt: Date.now(),
-  guildId,
-  channelId: interaction.channelId,
-  userId: callerId,
-
-  bet: lastBet,
-  dealerHand: dealer,
-
-  hands: [player],
-  activeHandIndex: 0,
-
-  didSplit: false,
-  handBets: [lastBet],
-  handResults: [null],
-  didDoubleOnHand: [false],
-
-  messageLine: `Choose your move. ${CC_EMOJI}`
-};
-
 BJ_GAMES.set(key, newState);
 
 const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
