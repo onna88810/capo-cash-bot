@@ -559,31 +559,134 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
   try {
 
     const parts = interaction.customId.split(":");
-const action = parts[1];
+    const action = parts[1];
 
-// ✅ REPLAY: same bet (auto-start)
-if (action === "replay_same") {
-  await interaction.deferUpdate();
+    // ==========================
+    // 🎯 REPLAY: SAME BET
+    // ==========================
+    if (action === "replay_same") {
+      await interaction.deferUpdate();
 
-  const lastBet = Number(parts[2] || 0);
-  const guildId = interaction.guildId;
-  const callerId = interaction.user.id;
+      const lastBet = Number(parts[2] || 0);
+      const guildId = interaction.guildId;
+      const callerId = interaction.user.id;
 
-  const cfg = await getConfig(guildId);
-  const currency = BJ_PAGE_CURRENCY(cfg);
+      const cfg = await getConfig(guildId);
+      const currency = BJ_PAGE_CURRENCY(cfg);
 
-  // new game key for THIS user in THIS channel
-  const key = bjGameKey(guildId, callerId, interaction.channelId);
+      const key = bjGameKey(guildId, callerId, interaction.channelId);
 
-  // if somehow a game exists, clear it if expired, otherwise block
-  const existing = BJ_GAMES.get(key);
-  if (existing && !bjIsExpired(existing)) {
-    return interaction.editReply({
-      content: "🃏 You already have an active blackjack game here.",
-      components: []
-    });
-  }
-  BJ_GAMES.delete(key);
+      const existing = BJ_GAMES.get(key);
+      if (existing && !bjIsExpired(existing)) {
+        return interaction.editReply({
+          content: "🃏 You already have an active blackjack game here.",
+          components: []
+        });
+      }
+
+      BJ_GAMES.delete(key);
+
+      // take bet up front
+      const take = await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: -lastBet,
+        type: "bj_bet",
+        reason: "Blackjack bet (replay same)",
+        actorId: callerId
+      });
+
+      if (!take.ok) {
+        return interaction.editReply(
+          `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`
+        );
+      }
+
+      const player = [bjDrawCard(), bjDrawCard()];
+      const dealer = [bjDrawCard(), bjDrawCard()];
+
+      const state = {
+        key,
+        createdAt: Date.now(),
+        guildId,
+        channelId: interaction.channelId,
+        userId: callerId,
+
+        bet: lastBet,
+        dealerHand: dealer,
+
+        hands: [player],
+        activeHandIndex: 0,
+
+        didSplit: false,
+        handBets: [lastBet],
+        handResults: [null],
+        didDoubleOnHand: [false],
+
+        messageLine: `Choose your move. ${CC_EMOJI}`
+      };
+
+      BJ_GAMES.set(key, state);
+
+      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+
+      return interaction.editReply({
+        embeds: [embed],
+        components: bjButtons(state)
+      });
+    }
+
+    // ==========================
+    // 🎯 REPLAY: NEW BET (MODAL)
+    // ==========================
+    if (action === "replay_new") {
+      const modal = new ModalBuilder()
+        .setCustomId("bj:newbet_modal")
+        .setTitle("Blackjack - New Bet");
+
+      const betInput = new TextInputBuilder()
+        .setCustomId("bet")
+        .setLabel("Enter your bet")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(betInput)
+      );
+
+      return interaction.showModal(modal);
+    }
+
+    // ==========================
+    // 🔁 NORMAL BUTTON FLOW
+    // ==========================
+
+    await interaction.deferUpdate();
+
+    const key = parts.slice(2).join(":");
+    const state = BJ_GAMES.get(key);
+
+    if (!state) {
+      return interaction.editReply({
+        content: "⚠️ This blackjack game is no longer active.",
+        components: []
+      });
+    }
+
+    if (interaction.user.id !== state.userId) {
+      return interaction.followUp({
+        content: "🚫 This isn’t your blackjack game.",
+        ephemeral: true
+      });
+    }
+
+    if (bjIsExpired(state)) {
+      BJ_GAMES.delete(key);
+      return interaction.editReply({
+        content: "⏳ This blackjack game expired. Start a new one with `/blackjack`.",
+        components: []
+      });
+    }
 
   // take bet up front
 const take = await applyBalanceChange({
