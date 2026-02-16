@@ -803,11 +803,11 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
 
   return interaction.editReply({
   embeds: [replayEmbed],
-    embeds: [embed],
+  
     components: bjButtons(newState)
   });
 }
-    const key = parts[3]; // the real BJ key from the button
+    const key = parts[2];
     const state = BJ_GAMES.get(key);
 
     if (!state) {
