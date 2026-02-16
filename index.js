@@ -605,7 +605,7 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
       const player = [bjDrawCard(), bjDrawCard()];
       const dealer = [bjDrawCard(), bjDrawCard()];
 
-      const state = {
+      const newState = {
         key,
         createdAt: Date.now(),
         guildId,
@@ -626,13 +626,13 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
         messageLine: `Choose your move. ${CC_EMOJI}`
       };
 
-      BJ_GAMES.set(key, state);
+      BJ_GAMES.set(key, newState);
 
-      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+      const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
 
       return interaction.editReply({
         embeds: [embed],
-        components: bjButtons(state)
+        components: bjButtons(newsState)
       });
     }
 
