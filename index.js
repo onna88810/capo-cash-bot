@@ -704,7 +704,7 @@ if (!take.ok) {
 const player = [bjDrawCard(), bjDrawCard()];
 const dealer = [bjDrawCard(), bjDrawCard()];
 
-const state = {
+const newState = {
   key,
   createdAt: Date.now(),
   guildId,
@@ -725,10 +725,10 @@ const state = {
   messageLine: `Choose your move. ${CC_EMOJI}`
 };
 
-BJ_GAMES.set(key, state);
+BJ_GAMES.set(key, newState);
 
-const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
+return interaction.editReply({ embeds: [embed], components: bjButtons(newState) });
 
   // deal
   const player = [bjDrawCard(), bjDrawCard()];
