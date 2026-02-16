@@ -560,22 +560,144 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
     await interaction.deferUpdate();
 
     const parts = interaction.customId.split(":");
-    const action = parts[1];
-    // REPLAY: same bet
+const action = parts[1];
+
+// ✅ REPLAY: same bet (auto-start)
 if (action === "replay_same") {
-  const lastBet = Number(parts[2]);
+  await interaction.deferUpdate();
 
-  return interaction.followUp({
-    content: `🎲 Starting new blackjack game with **${lastBet.toLocaleString("en-US")}** ${cfg.currency_name} ${CC_EMOJI}\n\nUse \`/blackjack bet:${lastBet}\``,
-    ephemeral: true
+  const lastBet = Number(parts[2] || 0);
+  const guildId = interaction.guildId;
+  const callerId = interaction.user.id;
+
+  const cfg = await getConfig(guildId);
+  const currency = BJ_PAGE_CURRENCY(cfg);
+
+  // new game key for THIS user in THIS channel
+  const key = bjGameKey(guildId, callerId, interaction.channelId);
+
+  // if somehow a game exists, clear it if expired, otherwise block
+  const existing = BJ_GAMES.get(key);
+  if (existing && !bjIsExpired(existing)) {
+    return interaction.editReply({
+      content: "🃏 You already have an active blackjack game here.",
+      components: []
+    });
+  }
+  BJ_GAMES.delete(key);
+
+  // take bet up front
+  const take = await applyBalanceChange({
+    guildId,
+    userId: callerId,
+    amount: -lastBet,
+    type: "bj_bet",
+    reason: "Blackjack bet (replay same)",
+    actorId: callerId
   });
-}
 
-// REPLAY: new bet
-if (action === "replay_new") {
-  return interaction.followUp({
-    content: `🎲 Choose a new bet using \`/blackjack\` and enter your amount ${CC_EMOJI}`,
-    ephemeral: true
+  if (!take.ok) {
+    return interaction.editReply({
+      content: `❌ You don’t have enough ${currency} for **${fmt(lastBet)}**.`,
+      components: bjReplayButtons(lastBet) // keep buttons so they can try new bet
+    });
+  }
+
+  // deal
+  const player = [bjDrawCard(), bjDrawCard()];
+  const dealer = [bjDrawCard(), bjDrawCard()];
+
+  const playerScore = bjScore(player);
+  const dealerScore = bjScore(dealer);
+  const playerBJ = playerScore === 21 && player.length === 2;
+  const dealerBJ = dealerScore === 21 && dealer.length === 2;
+
+  // natural blackjack (3:2)
+  if (playerBJ || dealerBJ) {
+    let result = "push";
+    if (playerBJ && !dealerBJ) result = "win";
+    else if (!playerBJ && dealerBJ) result = "lose";
+
+    let payout = 0;
+    if (result === "win") payout = Math.floor(lastBet * 2.5);
+    else if (result === "push") payout = lastBet;
+
+    if (payout > 0) {
+      await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: payout,
+        type: "bj_payout",
+        reason: "Blackjack (natural) replay",
+        actorId: "system"
+      });
+    }
+
+    const row = await getUserRow(guildId, callerId);
+    const newBal = Number(row?.balance ?? 0);
+
+    const headline =
+      result === "win"
+        ? `🂡 **BLACKJACK!** Pays **3:2** ✅`
+        : result === "lose"
+        ? `💀 **Dealer has Blackjack.**`
+        : `🤝 **Double Blackjack — Push.**`;
+
+    const tempState = {
+      bet: lastBet,
+      dealerHand: dealer,
+      hands: [player],
+      activeHandIndex: 0,
+      handBets: [lastBet],
+      messageLine: headline
+    };
+
+    const embed = bjBuildEmbed(cfg, tempState, {
+      revealDealer: true,
+      // ✅ IMPORTANT: do NOT put CC_EMOJI in embed footer (Discord shows it as text)
+      footerText: `New Balance: ${fmt(newBal)} ${currency}`
+    }).setDescription(
+      `${headline}\n` +
+      `**Bet:** ${fmt(lastBet)} ${currency}\n` +
+      `**Payout:** ${fmt(payout)} ${currency}\n` +
+      `**Net:** ${result === "win" ? `+${fmt(payout - lastBet)}` : result === "push" ? "0" : `-${fmt(lastBet)}`} ${currency} ${CC_EMOJI}`
+    );
+
+    return interaction.editReply({
+      embeds: [embed],
+      components: bjReplayButtons(lastBet)
+    });
+  }
+
+  // normal interactive game
+  const state = {
+    key,
+    createdAt: Date.now(),
+    guildId,
+    channelId: interaction.channelId,
+    userId: callerId,
+
+    bet: lastBet,
+    dealerHand: dealer,
+
+    hands: [player],
+    activeHandIndex: 0,
+
+    didSplit: false,
+    handBets: [lastBet],
+    handResults: [null],
+    didDoubleOnHand: [false],
+
+    messageLine: `Choose your move. ${CC_EMOJI}`
+  };
+
+  BJ_GAMES.set(key, state);
+
+  const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+
+  return interaction.editReply({
+    embeds: [embed],
+    components: bjButtons(state)
   });
 }
     const key = parts.slice(2).join(":");
