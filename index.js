@@ -797,7 +797,7 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
   }
 
   // normal interactive game
-  const state = {
+  const newState = {
     key,
     createdAt: Date.now(),
     guildId,
@@ -818,13 +818,13 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
     messageLine: `Choose your move. ${CC_EMOJI}`
   };
 
-  BJ_GAMES.set(key, state);
+  BJ_GAMES.set(key, newState);
 
-  const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+  const embed = bjBuildEmbed(cfg, newState, { revealDealer: false });
 
   return interaction.editReply({
     embeds: [embed],
-    components: bjButtons(state)
+    components: bjButtons(newState)
   });
 }
     const key = parts.slice(2).join(":");
