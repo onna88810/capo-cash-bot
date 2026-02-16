@@ -48,8 +48,6 @@ const BJ_GAMES = new Map(); // key => state
 const BJ_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const BJ_PAGE_CURRENCY = (cfg) => cfg?.currency_name || "Capo Cash";
 
-import { ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType } from "discord.js";
-
 const CC_EMOJI = "<a:CC:1472374417920229398>";
 const fmt = (n) => Number(n || 0).toLocaleString("en-US");
 
