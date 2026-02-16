@@ -9,7 +9,11 @@ import {
   PermissionFlagsBits,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  InteractionType
 } from "discord.js";
 // Roles that get muted when /lock is used
 const LOCK_ROLE_IDS = [
