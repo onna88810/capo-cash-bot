@@ -895,7 +895,7 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(newState) 
 
       BJ_GAMES.delete(state.key);
 
-   return interaction.editReply({ embeds: [embed], components: bjReplayButtons(state.bet) });
+   return interaction.editReply({ embeds: [embed], components: bjReplayButtons(state.bet, state.key)  });
     };
 
     const goNextHandOrFinish = async () => {
