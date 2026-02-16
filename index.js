@@ -563,7 +563,7 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
 if (action === "replay_same") {
   const lastBet = Number(parts[2]);
 
-  return interaction.reply({
+  return interaction.followUp({
     content: `🎲 Starting new blackjack game with **${lastBet.toLocaleString("en-US")}** ${cfg.currency_name} ${CC_EMOJI}\n\nUse \`/blackjack bet:${lastBet}\``,
     ephemeral: true
   });
@@ -571,7 +571,7 @@ if (action === "replay_same") {
 
 // REPLAY: new bet
 if (action === "replay_new") {
-  return interaction.reply({
+  return interaction.followUp({
     content: `🎲 Choose a new bet using \`/blackjack\` and enter your amount ${CC_EMOJI}`,
     ephemeral: true
   });
