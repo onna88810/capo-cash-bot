@@ -442,14 +442,6 @@ client.once("ready", async () => {
   );
 
   console.log("Global slash commands registered.");
-
-  // 🧹 TEMP: Clear old guild commands in MGS
-  await rest.put(
-    Routes.applicationGuildCommands(DISCORD_APP_ID, "1389493689398595635"),
-    { body: [] }
-  );
-
-  console.log("Cleared MGS guild commands.");
 });
 
 // ===== AUTO RUMBLE PAYOUT =====
