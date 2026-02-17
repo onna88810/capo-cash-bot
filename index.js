@@ -1313,10 +1313,17 @@ if (interaction.commandName === "balance") {
         ? DateTime.fromISO(row.last_daily_claim_at).setZone(tz)
         : null;
 
-      if (last && hoursBetween(last, now) < 24) {
-        const remaining = 24 - hoursBetween(last, now);
-        return interaction.editReply(`⏳ Daily cooldown. Try again in ~${remaining.toFixed(1)} hours.`);
-      }
+     if (last && hoursBetween(last, now) < 24) {
+  // next time they can claim (exact)
+  const next = last.plus({ hours: 24 });
+
+  // Discord timestamp needs UNIX seconds
+  const unix = Math.floor(next.toSeconds());
+
+  return interaction.editReply(
+    `⏳ Daily cooldown. Try again <t:${unix}:R>\n🗓️ Next daily: <t:${unix}:F>`
+  );
+}
 
       const grace = Number(cfg.daily_grace_hours ?? 3);
       let streak = Number(row.daily_streak ?? 0);
