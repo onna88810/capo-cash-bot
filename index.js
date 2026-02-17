@@ -1306,45 +1306,44 @@ if (interaction.commandName === "blackjack") {
     components: bjButtons(state)
   });
 }
-// 🔒 LOCK / 🔓 UNLOCK COMMANDS
-if (interaction.isChatInputCommand() && (interaction.commandName === "lock" || interaction.commandName === "unlock")) {
+// 🔒 LOCK / 🔓 UNLOCK (single channel only)
+if (
+  interaction.isChatInputCommand() &&
+  (interaction.commandName === "lock" || interaction.commandName === "unlock")
+) {
   await interaction.deferReply({ ephemeral: true });
 
-  // permission check (you can change this if you want different perms)
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
     return interaction.editReply("❌ You don’t have permission to use this.");
-  }
-
-  const channel = interaction.channel;
-  if (!channel || !channel.isTextBased()) {
-    return interaction.editReply("❌ This must be used in a text channel.");
   }
 
   const isLock = interaction.commandName === "lock";
 
   try {
+    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+    if (!channel?.isTextBased?.()) {
+      return interaction.editReply("❌ Lock channel not found or not a text channel.");
+    }
+
     for (const roleId of LOCK_ROLE_IDS) {
       if (isLock) {
-        // Deny messages in channel AND threads
         await channel.permissionOverwrites.edit(roleId, {
           SendMessages: false,
-          SendMessagesInThreads: false
+          SendMessagesInThreads: false,
         });
       } else {
-        // Cleanly remove the overwrite entirely (best “unlock”)
-        await channel.permissionOverwrites.delete(roleId).catch(() => {});
+        await channel.permissionOverwrites.delete(roleId);
       }
     }
 
     return interaction.editReply(
       isLock
-        ? "🔒 Locked: team roles can’t send messages here."
-        : "🔓 Unlocked: team roles restored."
+        ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
+        : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
     );
   } catch (e) {
     console.error("Lock/unlock error:", e);
-    return interaction.editReply("⚠️ Failed to update channel permissions. (Check bot perms/role order.)"
-      );
+    return interaction.editReply("⚠️ Failed to update channel permissions.");
   }
 }
    // BALANCE
