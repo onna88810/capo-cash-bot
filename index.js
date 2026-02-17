@@ -1307,9 +1307,11 @@ if (interaction.commandName === "blackjack") {
   });
 }
 // 🔒 LOCK / 🔓 UNLOCK COMMANDS
-if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+if (interaction.isChatInputCommand() && (interaction.commandName === "lock" || interaction.commandName === "unlock")) {
+  await interaction.deferReply({ ephemeral: true });
 
-  if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+  // permission check (you can change this if you want different perms)
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
     return interaction.editReply("❌ You don’t have permission to use this.");
   }
 
@@ -1318,27 +1320,32 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     return interaction.editReply("❌ This must be used in a text channel.");
   }
 
-  const lock = interaction.commandName === "lock";
+  const isLock = interaction.commandName === "lock";
 
   try {
     for (const roleId of LOCK_ROLE_IDS) {
-      await channel.permissionOverwrites.edit(roleId, {
-        SendMessages: lock ? false : null
-      });
+      if (isLock) {
+        // Deny messages in channel AND threads
+        await channel.permissionOverwrites.edit(roleId, {
+          SendMessages: false,
+          SendMessagesInThreads: false
+        });
+      } else {
+        // Cleanly remove the overwrite entirely (best “unlock”)
+        await channel.permissionOverwrites.delete(roleId).catch(() => {});
+      }
     }
 
-    return interaction.editReply(lock ? "🔒 Channel locked." : "🔓 Channel unlocked.");
-
+    return interaction.editReply(
+      isLock
+        ? "🔒 Locked: team roles can’t send messages here."
+        : "🔓 Unlocked: team roles restored."
+    );
   } catch (e) {
-    console.error("Lock error:", e);
-    return interaction.editReply("⚠️ Failed to change permissions.");
+    console.error("Lock/unlock error:", e);
+    return interaction.editReply("⚠️ Failed to update channel permissions. (Check bot perms/role order.)");
   }
 }
-  
-  try {
-    const cfg = await getConfig(guildId);
-    const tz = cfg.tz || "America/Chicago";
-
    // BALANCE
 if (interaction.commandName === "balance") {
   const target = interaction.options.getUser("user") ?? interaction.user;
