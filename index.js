@@ -1494,9 +1494,6 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
     // GIVE (admin only)
     if (interaction.commandName === "give") {
-      if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-        return interaction.editReply("❌ You don’t have permission.");
-      }
 
       const target = interaction.options.getUser("user", true);
       const amt = Math.max(1, Math.abs(interaction.options.getInteger("amount", true)));
