@@ -1725,7 +1725,7 @@ if (interaction.commandName === "slots") {
     );
   }
 
-  // lost (no payout)
+    // lost (no payout)
   const rowAfter = await getUserRow(guildId, callerId);
   const newBal = Number(rowAfter?.balance ?? 0);
 
@@ -1734,9 +1734,8 @@ if (interaction.commandName === "slots") {
     `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
     `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
-} // ✅ closes the SLOTS command (or whatever IF this is inside)
+} // closes the command block
 
-// ✅ end of try/catch + interactionCreate handler
 } catch (e) {
   console.error("Interaction error:", e?.message || e);
 
@@ -1752,6 +1751,6 @@ if (interaction.commandName === "slots") {
     });
   }
 }
-}); // ✅ end of client.on("interactionCreate"...)
+}); // closes client.on("interactionCreate")
 
 client.login(DISCORD_TOKEN);
