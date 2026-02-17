@@ -437,6 +437,38 @@ client.once("ready", async () => {
 
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
+// ===== Ghosty Role Daily Pings =====
+const GHOSTY_CHANNEL_ID = "1301577002720952321";
+const GHOSTY_ROLE_ID = "1301631283868336168";
+const TIMEZONE = "America/Chicago"; // CST/CDT auto handled
+
+const dailyTimes = [
+  "00:06","01:07","02:08","03:09","04:07","04:40","05:11","06:12","06:21",
+  "07:13","07:31","08:14","08:41","09:15","09:59","10:16","11:17","12:18",
+  "13:19","14:02","14:20","15:12","15:20","16:22","17:23","17:32","18:00",
+  "19:01","19:11","20:02","20:22","21:03","22:44","23:05","23:55"
+];
+
+dailyTimes.forEach(time => {
+  const [hour, minute] = time.split(":");
+
+  cron.schedule(
+    `${minute} ${hour} * * *`,
+    async () => {
+      try {
+        const channel = await client.channels.fetch(GHOSTY_CHANNEL_ID);
+        if (!channel?.isTextBased?.()) return;
+
+        await channel.send(`<@&${GHOSTY_ROLE_ID}>`);
+      } catch (err) {
+        console.error("Ghosty ping error:", err);
+      }
+    },
+    { timezone: TIMEZONE }
+  );
+});
+
+console.log("👻 Ghosty role pings scheduled.");
   // 🌎 Register GLOBAL commands
   await rest.put(
     Routes.applicationCommands(DISCORD_APP_ID),
