@@ -1677,7 +1677,6 @@ if (interaction.commandName === "slots") {
     `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
-}
 
         } catch (e) {
     console.error("Interaction error:", e?.message || e);
