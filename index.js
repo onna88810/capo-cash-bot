@@ -1759,7 +1759,7 @@ client.on("interactionCreate", async (interaction) => {
         content: "⚠️ Something went wrong. Try again.",
         ephemeral: true
       });
-    } catch {
+    } catch (e) {
       // swallow secondary failures
       return;
     }
