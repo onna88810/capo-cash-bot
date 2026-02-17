@@ -1343,7 +1343,8 @@ if (interaction.isChatInputCommand() && (interaction.commandName === "lock" || i
     );
   } catch (e) {
     console.error("Lock/unlock error:", e);
-    return interaction.editReply("⚠️ Failed to update channel permissions. (Check bot perms/role order.)");
+    return interaction.editReply("⚠️ Failed to update channel permissions. (Check bot perms/role order.)"
+      );
   }
 }
    // BALANCE
