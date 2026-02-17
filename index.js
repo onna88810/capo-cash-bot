@@ -603,6 +603,9 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
   }
+
+  // (your blackjack buttons + slash commands continue below this)
+});
 // ===== Blackjack buttons + replay (must be BEFORE isChatInputCommand return) =====
 
 // ----------------------------------------------------
