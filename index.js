@@ -1541,7 +1541,7 @@ if (interaction.commandName === "coinflip") {
     return interaction.editReply(
       `🪙 It landed on **${flip}**!\n` +
       `<@${callerId}> won **${bet} ${cfg.currency_name}**\n` +
-      `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+      `New Balance: **${fmt(newBal)}** <a:CC:1472374417920229398>`
     );
   }
 
