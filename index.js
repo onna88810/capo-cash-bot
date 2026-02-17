@@ -1330,10 +1330,6 @@ client.on("interactionCreate", async (interaction) => {
 
 // 🔒 LOCK / 🔓 UNLOCK (single channel only)
 if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-    return interaction.editReply("❌ You don’t have permission to use this.");
-  }
-
   const isLock = interaction.commandName === "lock";
 
   try {
@@ -1344,13 +1340,13 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
     for (const roleId of LOCK_ROLE_IDS) {
       if (isLock) {
-        // Lock = hard deny sending
+        // lock = force deny send perms
         await channel.permissionOverwrites.edit(roleId, {
           SendMessages: false,
           SendMessagesInThreads: false
         });
       } else {
-        // Unlock = force explicit allows
+        // unlock = force allow perms (your preferred defaults)
         await channel.permissionOverwrites.edit(roleId, {
           SendMessages: true,
           SendMessagesInThreads: true,
