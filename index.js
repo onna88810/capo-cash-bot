@@ -1171,10 +1171,8 @@ client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.guild) return;
 
-    // lock/unlock should be ephemeral; everything else normal
-    const isLockCmd = interaction.commandName === "lock" || interaction.commandName === "unlock";
-    await interaction.deferReply(isLockCmd ? { ephemeral: true } : undefined);
-
+    await interaction.deferReply();
+    
     const guildId = interaction.guild.id;
     const callerId = interaction.user.id;
 
