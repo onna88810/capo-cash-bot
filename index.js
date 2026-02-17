@@ -554,9 +554,11 @@ client.on("messageCreate", async (message) => {
 
 // ===== SLASH COMMANDS + LEADERBOARD BUTTONS =====
 client.on("interactionCreate", async (interaction) => {
-  // --- Leaderboard buttons ---
-  if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
-    try {
+  try {
+    // =========================
+    // 1) LEADERBOARD BUTTONS
+    // =========================
+    if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
       await interaction.deferUpdate();
 
       const guildId = interaction.guildId;
@@ -600,227 +602,71 @@ client.on("interactionCreate", async (interaction) => {
           totalPages: pageData.totalPages
         })
       });
-    } catch (e) {
-      console.error("Leaderboard button error:", e?.message || e);
-      return;
-    }
-  }
-
-// ===== Blackjack buttons + replay (must be BEFORE isChatInputCommand return) =====
-
-// ----------------------------------------------------
-// 0) "New bet" modal submit -> starts a new game
-// ----------------------------------------------------
-if (interaction.type === InteractionType.ModalSubmit && interaction.customId.startsWith("bj:newbet:")) {
-  try {
-    const key = interaction.customId.split(":")[2]; // bj:newbet:<key>
-
-    const betRaw = interaction.fields.getTextInputValue("bj_bet_amt") || "";
-    const bet = Math.floor(Number(betRaw.replace(/[^\d]/g, "")));
-
-    if (!bet || bet <= 0) {
-      return interaction.reply({ content: "⚠️ Please enter a valid bet amount.", ephemeral: true });
     }
 
-    const [guildId, channelId, userId] = key.split("_");
-    if (interaction.guildId !== guildId || interaction.channelId !== channelId) {
-      return interaction.reply({ content: "⚠️ That replay is no longer valid in this channel.", ephemeral: true });
-    }
-    if (interaction.user.id !== userId) {
-      return interaction.reply({ content: "🚫 That replay isn’t for you.", ephemeral: true });
-    }
+    // ==========================================
+    // 2) BLACKJACK "NEW BET" MODAL SUBMIT
+    // ==========================================
+    if (
+      interaction.type === InteractionType.ModalSubmit &&
+      interaction.customId.startsWith("bj:newbet:")
+    ) {
+      const key = interaction.customId.split(":")[2]; // bj:newbet:<key>
 
-    const cfg = await getConfig(guildId);
-    const currency = BJ_PAGE_CURRENCY(cfg);
+      const betRaw = interaction.fields.getTextInputValue("bj_bet_amt") || "";
+      const bet = Math.floor(Number(betRaw.replace(/[^\d]/g, "")));
 
-    const existing = BJ_GAMES.get(key);
-    if (existing && !bjIsExpired(existing)) {
-      return interaction.reply({ content: "🃏 You already have an active blackjack game here.", ephemeral: true });
-    }
-    BJ_GAMES.delete(key);
-
-    // take bet up front
-    const take = await applyBalanceChange({
-      guildId,
-      userId,
-      amount: -bet,
-      type: "bj_bet",
-      reason: "Blackjack bet (replay new)",
-      actorId: userId
-    });
-
-    if (!take.ok) {
-      return interaction.reply({ content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`, ephemeral: true });
-    }
-
-    // deal
-    const playerHand = [bjDrawCard(), bjDrawCard()];
-    const dealerHand = [bjDrawCard(), bjDrawCard()];
-
-    const playerScore = bjScore(playerHand);
-    const dealerScore = bjScore(dealerHand);
-    const playerBJ = playerScore === 21 && playerHand.length === 2;
-    const dealerBJ = dealerScore === 21 && dealerHand.length === 2;
-
-    // natural blackjack (3:2)
-    if (playerBJ || dealerBJ) {
-      let result = "push";
-      if (playerBJ && !dealerBJ) result = "win";
-      else if (!playerBJ && dealerBJ) result = "lose";
-
-      let payout = 0;
-      if (result === "win") payout = Math.floor(bet * 2.5);
-      else if (result === "push") payout = bet;
-
-      if (payout > 0) {
-        await applyBalanceChange({
-          guildId,
-          userId,
-          amount: payout,
-          type: "bj_payout",
-          reason: "Blackjack (natural) result",
-          actorId: "system"
+      if (!bet || bet <= 0) {
+        return interaction.reply({
+          content: "⚠️ Please enter a valid bet amount.",
+          ephemeral: true
         });
       }
 
-      const row = await getUserRow(guildId, userId);
-      const newBal = Number(row?.balance ?? 0);
-
-      const headline =
-        result === "win"
-          ? `🂡 **BLACKJACK!** Pays **3:2** ✅`
-          : result === "lose"
-          ? `💀 **Dealer has Blackjack.**`
-          : `🤝 **Double Blackjack — Push.**`;
-
-      const tempState = {
-        bet,
-        dealerHand,
-        hands: [playerHand],
-        activeHandIndex: 0,
-        handBets: [bet],
-        messageLine: headline
-      };
-
-      const embed = bjBuildEmbed(cfg, tempState, {
-        revealDealer: true,
-        // IMPORTANT: keep footer plain text (custom emoji won't render here reliably)
-        footerText: `New Balance: ${fmt(newBal)} ${currency}`
-      }).setDescription(
-        `${headline}\n` +
-        `**Bet:** ${fmt(bet)} ${currency}\n` +
-        `**Payout:** ${fmt(payout)} ${currency}\n` +
-        `**Net:** ${result === "win" ? `+${fmt(payout - bet)}` : result === "push" ? "0" : `-${fmt(bet)}`} ${currency} ${CC_EMOJI}`
-      );
-
-      return interaction.reply({
-        embeds: [embed],
-        components: bjReplayButtons(bet)
-      });
-    }
-
-    // normal interactive game
-    const state = {
-      key,
-      createdAt: Date.now(),
-      guildId,
-      channelId,
-      userId,
-
-      bet,
-      dealerHand,
-
-      hands: [playerHand],
-      activeHandIndex: 0,
-
-      didSplit: false,
-      handBets: [bet],
-      handResults: [null],
-      didDoubleOnHand: [false],
-
-      messageLine: `Choose your move. ${CC_EMOJI}`
-    };
-
-    BJ_GAMES.set(key, state);
-
-    const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-
-    return interaction.reply({
-      embeds: [embed],
-      components: bjButtons(state)
-    });
-  } catch (e) {
-    console.error("Blackjack modal submit error:", e?.message || e);
-    return interaction.reply({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
-  }
-}
-
-// ----------------------------------------------------
-// 1) Button clicks (hit/stand/double/split + replay)
-// ----------------------------------------------------
-if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
-  try {
-    const parts = interaction.customId.split(":");
-    const action = parts[1];
-
-    // REPLAY NEW BET -> show modal (DO NOT deferUpdate before showModal)
-    if (action === "replay_new") {
-      const guildId = interaction.guildId;
-      const callerId = interaction.user.id;
-      const key = bjGameKey(guildId, callerId, interaction.channelId);
-
-      const modal = new ModalBuilder()
-        .setCustomId(`bj:newbet:${key}`)
-        .setTitle("Blackjack - New Bet");
-
-      const betInput = new TextInputBuilder()
-        .setCustomId("bj_bet_amt")
-        .setLabel("Enter your bet amount")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setPlaceholder("e.g. 2500");
-
-      modal.addComponents(new ActionRowBuilder().addComponents(betInput));
-      return interaction.showModal(modal);
-    }
-
-    // Everything else can deferUpdate
-    await interaction.deferUpdate();
-
-    // REPLAY SAME BET -> auto-start new game
-    if (action === "replay_same") {
-      const lastBet = Math.floor(Number(parts[2] || 0));
-      if (!lastBet || lastBet <= 0) {
-        return interaction.editReply({ content: "⚠️ Invalid replay bet.", components: [] });
+      const [guildId, channelId, userId] = key.split("_");
+      if (interaction.guildId !== guildId || interaction.channelId !== channelId) {
+        return interaction.reply({
+          content: "⚠️ That replay is no longer valid in this channel.",
+          ephemeral: true
+        });
       }
-
-      const guildId = interaction.guildId;
-      const callerId = interaction.user.id;
+      if (interaction.user.id !== userId) {
+        return interaction.reply({
+          content: "🚫 That replay isn’t for you.",
+          ephemeral: true
+        });
+      }
 
       const cfg = await getConfig(guildId);
       const currency = BJ_PAGE_CURRENCY(cfg);
 
-      const key = bjGameKey(guildId, callerId, interaction.channelId);
-
       const existing = BJ_GAMES.get(key);
       if (existing && !bjIsExpired(existing)) {
-        return interaction.editReply({ content: "🃏 You already have an active blackjack game here.", components: [] });
+        return interaction.reply({
+          content: "🃏 You already have an active blackjack game here.",
+          ephemeral: true
+        });
       }
       BJ_GAMES.delete(key);
 
+      // take bet up front
       const take = await applyBalanceChange({
         guildId,
-        userId: callerId,
-        amount: -lastBet,
+        userId,
+        amount: -bet,
         type: "bj_bet",
-        reason: "Blackjack bet (replay same)",
-        actorId: callerId
+        reason: "Blackjack bet (replay new)",
+        actorId: userId
       });
 
       if (!take.ok) {
-        return interaction.editReply({ content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`, components: [] });
+        return interaction.reply({
+          content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`,
+          ephemeral: true
+        });
       }
 
+      // deal
       const playerHand = [bjDrawCard(), bjDrawCard()];
       const dealerHand = [bjDrawCard(), bjDrawCard()];
 
@@ -829,27 +675,28 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
       const playerBJ = playerScore === 21 && playerHand.length === 2;
       const dealerBJ = dealerScore === 21 && dealerHand.length === 2;
 
+      // natural blackjack (3:2)
       if (playerBJ || dealerBJ) {
         let result = "push";
         if (playerBJ && !dealerBJ) result = "win";
         else if (!playerBJ && dealerBJ) result = "lose";
 
         let payout = 0;
-        if (result === "win") payout = Math.floor(lastBet * 2.5);
-        else if (result === "push") payout = lastBet;
+        if (result === "win") payout = Math.floor(bet * 2.5);
+        else if (result === "push") payout = bet;
 
         if (payout > 0) {
           await applyBalanceChange({
             guildId,
-            userId: callerId,
+            userId,
             amount: payout,
             type: "bj_payout",
-            reason: "Blackjack (natural) replay same",
+            reason: "Blackjack (natural) result",
             actorId: "system"
           });
         }
 
-        const row = await getUserRow(guildId, callerId);
+        const row = await getUserRow(guildId, userId);
         const newBal = Number(row?.balance ?? 0);
 
         const headline =
@@ -860,11 +707,11 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
             : `🤝 **Double Blackjack — Push.**`;
 
         const tempState = {
-          bet: lastBet,
+          bet,
           dealerHand,
           hands: [playerHand],
           activeHandIndex: 0,
-          handBets: [lastBet],
+          handBets: [bet],
           messageLine: headline
         };
 
@@ -873,15 +720,581 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
           footerText: `New Balance: ${fmt(newBal)} ${currency}`
         }).setDescription(
           `${headline}\n` +
-          `**Bet:** ${fmt(lastBet)} ${currency}\n` +
-          `**Payout:** ${fmt(payout)} ${currency}\n` +
-          `**Net:** ${result === "win" ? `+${fmt(payout - lastBet)}` : result === "push" ? "0" : `-${fmt(lastBet)}`} ${currency} ${CC_EMOJI}`
+            `**Bet:** ${fmt(bet)} ${currency}\n` +
+            `**Payout:** ${fmt(payout)} ${currency}\n` +
+            `**Net:** ${
+              result === "win"
+                ? `+${fmt(payout - bet)}`
+                : result === "push"
+                ? "0"
+                : `-${fmt(bet)}`
+            } ${currency} ${CC_EMOJI}`
         );
+
+        return interaction.reply({
+          embeds: [embed],
+          components: bjReplayButtons(bet)
+        });
+      }
+
+      // normal interactive game
+      const state = {
+        key,
+        createdAt: Date.now(),
+        guildId,
+        channelId,
+        userId,
+
+        bet,
+        dealerHand,
+
+        hands: [playerHand],
+        activeHandIndex: 0,
+
+        didSplit: false,
+        handBets: [bet],
+        handResults: [null],
+        didDoubleOnHand: [false],
+
+        messageLine: `Choose your move. ${CC_EMOJI}`
+      };
+
+      BJ_GAMES.set(key, state);
+
+      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+
+      return interaction.reply({
+        embeds: [embed],
+        components: bjButtons(state)
+      });
+    }
+
+    // ==========================================
+    // 3) BLACKJACK BUTTONS (hit/stand/double/split + replay)
+    // ==========================================
+    if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
+      const parts = interaction.customId.split(":");
+      const action = parts[1];
+
+      // REPLAY NEW BET -> show modal (do NOT deferUpdate)
+      if (action === "replay_new") {
+        const guildId = interaction.guildId;
+        const callerId = interaction.user.id;
+        const key = bjGameKey(guildId, callerId, interaction.channelId);
+
+        const modal = new ModalBuilder()
+          .setCustomId(`bj:newbet:${key}`)
+          .setTitle("Blackjack - New Bet");
+
+        const betInput = new TextInputBuilder()
+          .setCustomId("bj_bet_amt")
+          .setLabel("Enter your bet amount")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("e.g. 2500");
+
+        modal.addComponents(new ActionRowBuilder().addComponents(betInput));
+        return interaction.showModal(modal);
+      }
+
+      // Everything else can deferUpdate
+      await interaction.deferUpdate();
+
+      // REPLAY SAME BET -> auto-start new game
+      if (action === "replay_same") {
+        const lastBet = Math.floor(Number(parts[2] || 0));
+        if (!lastBet || lastBet <= 0) {
+          return interaction.editReply({ content: "⚠️ Invalid replay bet.", components: [] });
+        }
+
+        const guildId = interaction.guildId;
+        const callerId = interaction.user.id;
+
+        const cfg = await getConfig(guildId);
+        const currency = BJ_PAGE_CURRENCY(cfg);
+
+        const key = bjGameKey(guildId, callerId, interaction.channelId);
+
+        const existing = BJ_GAMES.get(key);
+        if (existing && !bjIsExpired(existing)) {
+          return interaction.editReply({
+            content: "🃏 You already have an active blackjack game here.",
+            components: []
+          });
+        }
+        BJ_GAMES.delete(key);
+
+        const take = await applyBalanceChange({
+          guildId,
+          userId: callerId,
+          amount: -lastBet,
+          type: "bj_bet",
+          reason: "Blackjack bet (replay same)",
+          actorId: callerId
+        });
+
+        if (!take.ok) {
+          return interaction.editReply({
+            content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`,
+            components: []
+          });
+        }
+
+        const playerHand = [bjDrawCard(), bjDrawCard()];
+        const dealerHand = [bjDrawCard(), bjDrawCard()];
+
+        const playerScore = bjScore(playerHand);
+        const dealerScore = bjScore(dealerHand);
+        const playerBJ = playerScore === 21 && playerHand.length === 2;
+        const dealerBJ = dealerScore === 21 && dealerHand.length === 2;
+
+        if (playerBJ || dealerBJ) {
+          let result = "push";
+          if (playerBJ && !dealerBJ) result = "win";
+          else if (!playerBJ && dealerBJ) result = "lose";
+
+          let payout = 0;
+          if (result === "win") payout = Math.floor(lastBet * 2.5);
+          else if (result === "push") payout = lastBet;
+
+          if (payout > 0) {
+            await applyBalanceChange({
+              guildId,
+              userId: callerId,
+              amount: payout,
+              type: "bj_payout",
+              reason: "Blackjack (natural) replay same",
+              actorId: "system"
+            });
+          }
+
+          const row = await getUserRow(guildId, callerId);
+          const newBal = Number(row?.balance ?? 0);
+
+          const headline =
+            result === "win"
+              ? `🂡 **BLACKJACK!** Pays **3:2** ✅`
+              : result === "lose"
+              ? `💀 **Dealer has Blackjack.**`
+              : `🤝 **Double Blackjack — Push.**`;
+
+          const tempState = {
+            bet: lastBet,
+            dealerHand,
+            hands: [playerHand],
+            activeHandIndex: 0,
+            handBets: [lastBet],
+            messageLine: headline
+          };
+
+          const embed = bjBuildEmbed(cfg, tempState, {
+            revealDealer: true,
+            footerText: `New Balance: ${fmt(newBal)} ${currency}`
+          }).setDescription(
+            `${headline}\n` +
+              `**Bet:** ${fmt(lastBet)} ${currency}\n` +
+              `**Payout:** ${fmt(payout)} ${currency}\n` +
+              `**Net:** ${
+                result === "win"
+                  ? `+${fmt(payout - lastBet)}`
+                  : result === "push"
+                  ? "0"
+                  : `-${fmt(lastBet)}`
+              } ${currency} ${CC_EMOJI}`
+          );
+
+          return interaction.editReply({
+            embeds: [embed],
+            components: bjReplayButtons(lastBet)
+          });
+        }
+
+        const state = {
+          key,
+          createdAt: Date.now(),
+          guildId,
+          channelId: interaction.channelId,
+          userId: callerId,
+
+          bet: lastBet,
+          dealerHand,
+
+          hands: [playerHand],
+          activeHandIndex: 0,
+
+          didSplit: false,
+          handBets: [lastBet],
+          handResults: [null],
+          didDoubleOnHand: [false],
+
+          messageLine: `Choose your move. ${CC_EMOJI}`
+        };
+
+        BJ_GAMES.set(key, state);
+
+        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
 
         return interaction.editReply({
           embeds: [embed],
-          components: bjReplayButtons(lastBet)
+          components: bjButtons(state)
         });
+      }
+
+      // NORMAL GAME BUTTON FLOW (hit/stand/double/split)
+      // NOTE: key is built with underscores, not colons, so this is safe:
+      const key = parts.slice(2).join(":");
+      const state = BJ_GAMES.get(key);
+
+      if (!state) {
+        return interaction.editReply({
+          content: "⚠️ This blackjack game is no longer active.",
+          components: []
+        });
+      }
+      if (interaction.user.id !== state.userId) {
+        return interaction.followUp({ content: "🚫 This isn’t your blackjack game.", ephemeral: true });
+      }
+      if (bjIsExpired(state)) {
+        BJ_GAMES.delete(key);
+        return interaction.editReply({
+          content: "⏳ This blackjack game expired. Start a new one with `/blackjack`.",
+          components: []
+        });
+      }
+
+      const guildId = state.guildId;
+      const cfg = await getConfig(guildId);
+      const currency = BJ_PAGE_CURRENCY(cfg);
+
+      const currentHand = state.hands[state.activeHandIndex];
+
+      const dealerPlay = () => {
+        while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
+      };
+
+      const settleHand = (hand) => {
+        const ps = bjScore(hand);
+        const ds = bjScore(state.dealerHand);
+        if (ps > 21) return "lose";
+        if (ds > 21) return "win";
+        if (ps > ds) return "win";
+        if (ps === ds) return "push";
+        return "lose";
+      };
+
+      const computePayout = () => {
+        let payout = 0;
+        for (let i = 0; i < state.hands.length; i++) {
+          const res = state.handResults[i];
+          const handBet = state.handBets[i];
+          if (res === "win") payout += handBet * 2;
+          else if (res === "push") payout += handBet;
+        }
+        return payout;
+      };
+
+      const finalizeGame = async () => {
+        dealerPlay();
+
+        for (let i = 0; i < state.hands.length; i++) {
+          if (!state.handResults[i]) state.handResults[i] = settleHand(state.hands[i]);
+        }
+
+        const payout = computePayout();
+
+        if (payout > 0) {
+          await applyBalanceChange({
+            guildId,
+            userId: state.userId,
+            amount: payout,
+            type: "bj_payout",
+            reason: "Blackjack result",
+            actorId: "system"
+          });
+        }
+
+        const row = await getUserRow(guildId, state.userId);
+        const newBal = Number(row?.balance ?? 0);
+
+        let resultLine = "";
+        if (state.hands.length === 1) {
+          const r = state.handResults[0];
+          resultLine = r === "win" ? "✅ You win!" : r === "push" ? "🤝 Push!" : "❌ You lose.";
+        } else {
+          const toEmoji = (r) => (r === "win" ? "✅" : r === "push" ? "🤝" : "❌");
+          resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
+        }
+
+        const embed = bjBuildEmbed(cfg, state, {
+          revealDealer: true,
+          footerText: `New Balance: ${fmt(newBal)} ${currency}`
+        }).setDescription(
+          `**Final:** ${resultLine}\n` +
+            `**Payout:** ${fmt(payout)} ${currency}\n` +
+            `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
+        );
+
+        BJ_GAMES.delete(state.key);
+
+        return interaction.editReply({
+          embeds: [embed],
+          components: bjReplayButtons(state.bet)
+        });
+      };
+
+      const goNextHandOrFinish = async () => {
+        if (state.hands.length === 2 && state.activeHandIndex === 0) {
+          state.activeHandIndex = 1;
+          state.messageLine = "Now playing Hand 2.";
+          const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+          return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+        }
+        return finalizeGame();
+      };
+
+      if (action === "hit") {
+        currentHand.push(bjDrawCard());
+        state.messageLine = `➕ Hit on Hand ${state.activeHandIndex + 1}.`;
+
+        const total = bjScore(currentHand);
+        if (total > 21) {
+          state.handResults[state.activeHandIndex] = "lose";
+          state.messageLine = `💥 Bust on Hand ${state.activeHandIndex + 1}.`;
+          return goNextHandOrFinish();
+        }
+        if (total === 21) {
+          state.messageLine = `🎯 21 on Hand ${state.activeHandIndex + 1}! (Auto-stand)`;
+          return goNextHandOrFinish();
+        }
+
+        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+      }
+
+      if (action === "stand") {
+        state.messageLine = `🛑 Stood on Hand ${state.activeHandIndex + 1}.`;
+        return goNextHandOrFinish();
+      }
+
+      if (action === "double") {
+        const handIndex = state.activeHandIndex;
+
+        if (currentHand.length !== 2) {
+          return interaction.followUp({
+            content: "⚠️ You can only Double Down on your first two cards.",
+            ephemeral: true
+          });
+        }
+        if (state.didDoubleOnHand[handIndex]) {
+          return interaction.followUp({
+            content: "⚠️ You already doubled on this hand.",
+            ephemeral: true
+          });
+        }
+
+        const takeMore = await applyBalanceChange({
+          guildId,
+          userId: state.userId,
+          amount: -state.handBets[handIndex],
+          type: "bj_double",
+          reason: "Blackjack double down",
+          actorId: state.userId
+        });
+        if (!takeMore.ok) {
+          return interaction.followUp({
+            content: `❌ You don’t have enough ${currency} to double down.`,
+            ephemeral: true
+          });
+        }
+
+        state.didDoubleOnHand[handIndex] = true;
+        state.handBets[handIndex] = state.handBets[handIndex] * 2;
+        state.messageLine = `⏫ Double Down on Hand ${handIndex + 1}. (One card then stand)`;
+
+        currentHand.push(bjDrawCard());
+
+        if (bjScore(currentHand) > 21) {
+          state.handResults[handIndex] = "lose";
+          state.messageLine = `💥 Bust after Double Down on Hand ${handIndex + 1}.`;
+        }
+
+        return goNextHandOrFinish();
+      }
+
+      if (action === "split") {
+        if (state.didSplit) {
+          return interaction.followUp({ content: "⚠️ You can only split once.", ephemeral: true });
+        }
+        if (!bjCanSplit(currentHand)) {
+          return interaction.followUp({
+            content: "⚠️ Split is only available when your first two cards match in value.",
+            ephemeral: true
+          });
+        }
+
+        const takeMore = await applyBalanceChange({
+          guildId,
+          userId: state.userId,
+          amount: -state.bet,
+          type: "bj_split",
+          reason: "Blackjack split",
+          actorId: state.userId
+        });
+        if (!takeMore.ok) {
+          return interaction.followUp({ content: `❌ You don’t have enough ${currency} to split.`, ephemeral: true });
+        }
+
+        state.didSplit = true;
+
+        const [c1, c2] = currentHand;
+        state.hands = [[c1], [c2]];
+        state.hands[0].push(bjDrawCard());
+        state.hands[1].push(bjDrawCard());
+
+        state.handBets = [state.bet, state.bet];
+        state.handResults = [null, null];
+        state.didDoubleOnHand = [false, false];
+        state.activeHandIndex = 0;
+
+        state.messageLine = "✂️ Split! Now playing Hand 1.";
+
+        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+      }
+
+      return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
+    }
+
+    // =========================
+    // 4) SLASH COMMANDS
+    // =========================
+    if (!interaction.isChatInputCommand()) return;
+    if (!interaction.guild) return;
+
+    // lock/unlock should be ephemeral; everything else normal
+    const isLockCmd = interaction.commandName === "lock" || interaction.commandName === "unlock";
+    await interaction.deferReply(isLockCmd ? { ephemeral: true } : undefined);
+
+    const guildId = interaction.guild.id;
+    const callerId = interaction.user.id;
+
+    // IMPORTANT: cfg + tz MUST exist before any command uses them
+    const cfg = await getConfig(guildId);
+    const tz = cfg?.timezone || "America/Chicago";
+
+    // ===== RUMBLE (admin) =====
+    if (interaction.commandName === "rumble") {
+      const sub = interaction.options.getSubcommand();
+
+      if (sub === "payoutamount") {
+        const amount = interaction.options.getInteger("amount", true);
+
+        const { error } = await supabase
+          .from("config")
+          .update({ rumble_win_amount: amount })
+          .eq("guild_id", guildId);
+
+        if (error) {
+          console.error("Rumble payout update error:", error);
+          return interaction.editReply("❌ Failed to update payout amount.");
+        }
+
+        return interaction.editReply(
+          `✅ Rumble payout amount set to **${amount} Capo Cash** server-wide.`
+        );
+      }
+    }
+
+    // BLACKJACK (slash command)
+    if (interaction.commandName === "blackjack") {
+      const bet = Math.max(1, interaction.options.getInteger("bet", true));
+      await upsertUserRow(guildId, callerId);
+
+      const key = bjGameKey(guildId, callerId, interaction.channelId);
+
+      const existing = BJ_GAMES.get(key);
+      if (existing && !bjIsExpired(existing)) {
+        return interaction.editReply(
+          "🃏 You already have an active blackjack game here. Finish it or wait for it to expire."
+        );
+      }
+      BJ_GAMES.delete(key);
+
+      const currency = BJ_PAGE_CURRENCY(cfg);
+
+      const take = await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: -bet,
+        type: "bj_bet",
+        reason: "Blackjack bet",
+        actorId: callerId
+      });
+
+      if (!take.ok) {
+        return interaction.editReply(`❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`);
+      }
+
+      const player = [bjDrawCard(), bjDrawCard()];
+      const dealer = [bjDrawCard(), bjDrawCard()];
+
+      const playerScore = bjScore(player);
+      const dealerScore = bjScore(dealer);
+      const playerBJ = player.length === 2 && playerScore === 21;
+      const dealerBJ = dealer.length === 2 && dealerScore === 21;
+
+      if (playerBJ || dealerBJ) {
+        let result = "push";
+        if (playerBJ && !dealerBJ) result = "win";
+        else if (!playerBJ && dealerBJ) result = "lose";
+
+        let payout = 0;
+        if (result === "win") payout = Math.floor(bet * 2.5);
+        else if (result === "push") payout = bet;
+
+        if (payout > 0) {
+          await applyBalanceChange({
+            guildId,
+            userId: callerId,
+            amount: payout,
+            type: "bj_payout",
+            reason: "Blackjack (natural)",
+            actorId: "system"
+          });
+        }
+
+        const row = await getUserRow(guildId, callerId);
+        const newBal = Number(row?.balance ?? 0);
+
+        const profit = result === "win" ? payout - bet : result === "push" ? 0 : -bet;
+
+        const headline =
+          result === "win"
+            ? `🂡 **BLACKJACK!** Pays **3:2** ✅ ${CC_EMOJI}`
+            : result === "lose"
+            ? `💀 **Dealer has Blackjack.** ${CC_EMOJI}`
+            : `🤝 **Double Blackjack — Push.** ${CC_EMOJI}`;
+
+        const tempState = {
+          bet,
+          dealerHand: dealer,
+          hands: [player],
+          activeHandIndex: 0,
+          handBets: [bet],
+          messageLine: headline
+        };
+
+        const embed = bjBuildEmbed(cfg, tempState, {
+          revealDealer: true,
+          footerText: `New Balance: ${fmt(newBal)} ${currency}`
+        }).setDescription(
+          `${headline}\n` +
+            `**Bet:** ${fmt(bet)} ${currency}\n` +
+            `**Payout:** ${fmt(payout)} ${currency}\n` +
+            `**Net:** ${profit >= 0 ? "+" : ""}${fmt(profit)} ${currency} ${CC_EMOJI}`
+        );
+
+        return interaction.editReply({ embeds: [embed], components: bjReplayButtons(bet) });
       }
 
       const state = {
@@ -891,14 +1304,14 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
         channelId: interaction.channelId,
         userId: callerId,
 
-        bet: lastBet,
-        dealerHand,
+        bet,
+        dealerHand: dealer,
 
-        hands: [playerHand],
+        hands: [player],
         activeHandIndex: 0,
 
         didSplit: false,
-        handBets: [lastBet],
+        handBets: [bet],
         handResults: [null],
         didDoubleOnHand: [false],
 
@@ -915,451 +1328,55 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
       });
     }
 
-    // NORMAL GAME BUTTON FLOW (hit/stand/double/split)
-    const key = parts.slice(2).join(":");
-    const state = BJ_GAMES.get(key);
+    // 🔒 LOCK / 🔓 UNLOCK (single channel only)
+    if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+        return interaction.editReply("❌ You don’t have permission to use this.");
+      }
 
-    if (!state) {
-      return interaction.editReply({ content: "⚠️ This blackjack game is no longer active.", components: [] });
+      const isLock = interaction.commandName === "lock";
+
+      try {
+        const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+        if (!channel || !channel.isTextBased()) {
+          return interaction.editReply("❌ Lock channel not found or not a text channel.");
+        }
+
+        for (const roleId of LOCK_ROLE_IDS) {
+          if (isLock) {
+            await channel.permissionOverwrites.edit(roleId, {
+              SendMessages: false,
+              SendMessagesInThreads: false
+            });
+          } else {
+            await channel.permissionOverwrites.delete(roleId);
+          }
+        }
+
+        return interaction.editReply(
+          isLock
+            ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
+            : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
+        );
+      } catch (e) {
+        console.error("Lock/unlock error:", e?.message || e);
+        return interaction.editReply("⚠️ Failed to update channel permissions.");
+      }
     }
-    if (interaction.user.id !== state.userId) {
-      return interaction.followUp({ content: "🚫 This isn’t your blackjack game.", ephemeral: true });
-    }
-    if (bjIsExpired(state)) {
-      BJ_GAMES.delete(key);
-      return interaction.editReply({ content: "⏳ This blackjack game expired. Start a new one with `/blackjack`.", components: [] });
-    }
 
-    const guildId = state.guildId;
-    const cfg = await getConfig(guildId);
-    const currency = BJ_PAGE_CURRENCY(cfg);
+    // BALANCE
+    if (interaction.commandName === "balance") {
+      const target = interaction.options.getUser("user") ?? interaction.user;
 
-    const currentHand = state.hands[state.activeHandIndex];
+      const row =
+        (await getUserRow(guildId, target.id)) || (await upsertUserRow(guildId, target.id));
 
-    const dealerPlay = () => {
-      while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
-    };
-
-    const settleHand = (hand) => {
-      const ps = bjScore(hand);
-      const ds = bjScore(state.dealerHand);
-      if (ps > 21) return "lose";
-      if (ds > 21) return "win";
-      if (ps > ds) return "win";
-      if (ps === ds) return "push";
-      return "lose";
-    };
-
-    const computePayout = () => {
-      let payout = 0;
-      for (let i = 0; i < state.hands.length; i++) {
-        const res = state.handResults[i];
-        const handBet = state.handBets[i];
-        if (res === "win") payout += handBet * 2;
-        else if (res === "push") payout += handBet;
-      }
-      return payout;
-    };
-
-    const finalizeGame = async () => {
-      dealerPlay();
-
-      for (let i = 0; i < state.hands.length; i++) {
-        if (!state.handResults[i]) state.handResults[i] = settleHand(state.hands[i]);
-      }
-
-      const payout = computePayout();
-
-      if (payout > 0) {
-        await applyBalanceChange({
-          guildId,
-          userId: state.userId,
-          amount: payout,
-          type: "bj_payout",
-          reason: "Blackjack result",
-          actorId: "system"
-        });
-      }
-
-      const row = await getUserRow(guildId, state.userId);
-      const newBal = Number(row?.balance ?? 0);
-
-      let resultLine = "";
-      if (state.hands.length === 1) {
-        const r = state.handResults[0];
-        resultLine = r === "win" ? "✅ You win!" : r === "push" ? "🤝 Push!" : "❌ You lose.";
-      } else {
-        const toEmoji = (r) => (r === "win" ? "✅" : r === "push" ? "🤝" : "❌");
-        resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
-      }
-
-      const embed = bjBuildEmbed(cfg, state, {
-        revealDealer: true,
-        footerText: `New Balance: ${fmt(newBal)} ${currency}`
-      }).setDescription(
-        `**Final:** ${resultLine}\n` +
-        `**Payout:** ${fmt(payout)} ${currency}\n` +
-        `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
+      return interaction.editReply(
+        `💸 <@${target.id}> has **${Number(row.balance ?? 0).toLocaleString(
+          "en-US"
+        )}** ${cfg.currency_name} ${CC_EMOJI}`
       );
-
-      BJ_GAMES.delete(state.key);
-
-      return interaction.editReply({
-        embeds: [embed],
-        components: bjReplayButtons(state.bet)
-      });
-    };
-
-    const goNextHandOrFinish = async () => {
-      if (state.hands.length === 2 && state.activeHandIndex === 0) {
-        state.activeHandIndex = 1;
-        state.messageLine = "Now playing Hand 2.";
-        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
-      }
-      return finalizeGame();
-    };
-
-    if (action === "hit") {
-      currentHand.push(bjDrawCard());
-      state.messageLine = `➕ Hit on Hand ${state.activeHandIndex + 1}.`;
-
-      const total = bjScore(currentHand);
-      if (total > 21) {
-        state.handResults[state.activeHandIndex] = "lose";
-        state.messageLine = `💥 Bust on Hand ${state.activeHandIndex + 1}.`;
-        return goNextHandOrFinish();
-      }
-      if (total === 21) {
-        state.messageLine = `🎯 21 on Hand ${state.activeHandIndex + 1}! (Auto-stand)`;
-        return goNextHandOrFinish();
-      }
-
-      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-      return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
     }
-
-    if (action === "stand") {
-      state.messageLine = `🛑 Stood on Hand ${state.activeHandIndex + 1}.`;
-      return goNextHandOrFinish();
-    }
-
-    if (action === "double") {
-      const handIndex = state.activeHandIndex;
-
-      if (currentHand.length !== 2) {
-        return interaction.followUp({ content: "⚠️ You can only Double Down on your first two cards.", ephemeral: true });
-      }
-      if (state.didDoubleOnHand[handIndex]) {
-        return interaction.followUp({ content: "⚠️ You already doubled on this hand.", ephemeral: true });
-      }
-
-      const takeMore = await applyBalanceChange({
-        guildId,
-        userId: state.userId,
-        amount: -state.handBets[handIndex],
-        type: "bj_double",
-        reason: "Blackjack double down",
-        actorId: state.userId
-      });
-      if (!takeMore.ok) {
-        return interaction.followUp({ content: `❌ You don’t have enough ${currency} to double down.`, ephemeral: true });
-      }
-
-      state.didDoubleOnHand[handIndex] = true;
-      state.handBets[handIndex] = state.handBets[handIndex] * 2;
-      state.messageLine = `⏫ Double Down on Hand ${handIndex + 1}. (One card then stand)`;
-
-      currentHand.push(bjDrawCard());
-
-      if (bjScore(currentHand) > 21) {
-        state.handResults[handIndex] = "lose";
-        state.messageLine = `💥 Bust after Double Down on Hand ${handIndex + 1}.`;
-      }
-
-      return goNextHandOrFinish();
-    }
-
-    if (action === "split") {
-      if (state.didSplit) {
-        return interaction.followUp({ content: "⚠️ You can only split once.", ephemeral: true });
-      }
-      if (!bjCanSplit(currentHand)) {
-        return interaction.followUp({ content: "⚠️ Split is only available when your first two cards match in value.", ephemeral: true });
-      }
-
-      const takeMore = await applyBalanceChange({
-        guildId,
-        userId: state.userId,
-        amount: -state.bet,
-        type: "bj_split",
-        reason: "Blackjack split",
-        actorId: state.userId
-      });
-      if (!takeMore.ok) {
-        return interaction.followUp({ content: `❌ You don’t have enough ${currency} to split.`, ephemeral: true });
-      }
-
-      state.didSplit = true;
-
-      const [c1, c2] = currentHand;
-      state.hands = [[c1], [c2]];
-      state.hands[0].push(bjDrawCard());
-      state.hands[1].push(bjDrawCard());
-
-      state.handBets = [state.bet, state.bet];
-      state.handResults = [null, null];
-      state.didDoubleOnHand = [false, false];
-      state.activeHandIndex = 0;
-
-      state.messageLine = "✂️ Split! Now playing Hand 1.";
-
-      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-      return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
-    }
-
-    return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
-  } catch (e) {
-    console.error("Blackjack button error:", e?.message || e);
-    return interaction.followUp({ content: "⚠️ Something went wrong. Please try again.", ephemeral: true });
-  }
-}
-
-// ----------------------------------------------------
-// 2) Replay buttons (no key needed)
-// ----------------------------------------------------
-function bjReplayButtons(lastBet) {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`bj:replay_same:${lastBet}`)
-        .setLabel("Play again (same bet)")
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId("bj:replay_new")
-        .setLabel("Play again (new bet)")
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
-  // --- Slash commands ---
-  if (!interaction.isChatInputCommand()) return;
-  if (!interaction.guild) return;
-
-  await interaction.deferReply();
-  
-  const guildId = interaction.guild.id;
-  const callerId = interaction.user.id;
-
-// ===== RUMBLE (admin) =====
-if (interaction.commandName === "rumble") {
-  const sub = interaction.options.getSubcommand();
-  const guildId = interaction.guild.id;
-
-  if (sub === "payoutamount") {
-    const amount = interaction.options.getInteger("amount", true);
-
-    const { error } = await supabase
-      .from("config")
-      .update({ rumble_win_amount: amount })
-      .eq("guild_id", guildId);
-
-    if (error) {
-      console.error("Rumble payout update error:", error);
-      return interaction.editReply("❌ Failed to update payout amount.");
-    }
-
-    return interaction.editReply(
-      `✅ Rumble payout amount set to **${amount} Capo Cash** server-wide.`
-    );
-  }
-}
-
-// BLACKJACK (interactive + dealer peek + 3:2)
-if (interaction.commandName === "blackjack") {
-  const bet = Math.max(1, interaction.options.getInteger("bet", true));
-  await upsertUserRow(guildId, callerId);
-
-  const key = bjGameKey(guildId, callerId, interaction.channelId);
-
-  const existing = BJ_GAMES.get(key);
-  if (existing && !bjIsExpired(existing)) {
-    return interaction.editReply("🃏 You already have an active blackjack game here. Finish it or wait for it to expire.");
-  }
-  BJ_GAMES.delete(key);
-
-  // ✅ get cfg BEFORE using it anywhere
-  const cfg = await getConfig(guildId);
-  const currency = BJ_PAGE_CURRENCY(cfg);
-
-  // take bet up front
-  const take = await applyBalanceChange({
-    guildId,
-    userId: callerId,
-    amount: -bet,
-    type: "bj_bet",
-    reason: "Blackjack bet",
-    actorId: callerId
-  });
-  if (!take.ok) {
-    return interaction.editReply(`❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`);
-  }
-
-  const player = [bjDrawCard(), bjDrawCard()];
-  const dealer = [bjDrawCard(), bjDrawCard()];
-
-  const playerScore = bjScore(player);
-  const dealerScore = bjScore(dealer);
-  const playerBJ = player.length === 2 && playerScore === 21;
-  const dealerBJ = dealer.length === 2 && dealerScore === 21;
-
-  // Natural blackjack handling (pays 3:2)
-  if (playerBJ || dealerBJ) {
-    let result = "push";
-    if (playerBJ && !dealerBJ) result = "win";
-    else if (!playerBJ && dealerBJ) result = "lose";
-
-    // bet already deducted; blackjack win pays 3:2 => return 2.5x bet
-    let payout = 0;
-    if (result === "win") payout = Math.floor(bet * 2.5);
-    else if (result === "push") payout = bet;
-
-    if (payout > 0) {
-      await applyBalanceChange({
-        guildId,
-        userId: callerId,
-        amount: payout,
-        type: "bj_payout",
-        reason: "Blackjack (natural)",
-        actorId: "system"
-      });
-    }
-
-    const row = await getUserRow(guildId, callerId);
-    const newBal = Number(row?.balance ?? 0);
-
-    const profit = result === "win" ? (payout - bet) : result === "push" ? 0 : -bet;
-
-    const headline =
-      result === "win"
-        ? `🂡 **BLACKJACK!** Pays **3:2** ✅ ${CC_EMOJI}`
-        : result === "lose"
-        ? `💀 **Dealer has Blackjack.** ${CC_EMOJI}`
-        : `🤝 **Double Blackjack — Push.** ${CC_EMOJI}`;
-
-    const outcomeLine =
-      result === "win"
-        ? `You win **+${new Intl.NumberFormat("en-US").format(profit)}** ${currency}!`
-        : result === "lose"
-        ? `You lose **${new Intl.NumberFormat("en-US").format(bet)}** ${currency}.`
-        : `Your bet was returned.`;
-
-    const tempState = {
-      bet,
-      dealerHand: dealer,
-      hands: [player],
-      activeHandIndex: 0,
-      handBets: [bet],
-      messageLine: headline
-    };
-
-    const embed = bjBuildEmbed(cfg, tempState, {
-      revealDealer: true,
-      footerText: `New Balance: ${new Intl.NumberFormat("en-US").format(newBal)} ${currency} ${CC_EMOJI}`
-    }).setDescription(
-      `${headline}\n${outcomeLine}\n\n` +
-      `**Bet:** ${new Intl.NumberFormat("en-US").format(bet)} ${currency}\n` +
-      `**Payout:** ${new Intl.NumberFormat("en-US").format(payout)} ${currency}`
-    );
-
-    // ✅ show play again buttons even on natural blackjack
-    return interaction.editReply({ embeds: [embed], components: bjReplayButtons(bet) });
-  }
-
-  // Normal interactive game
-  const state = {
-    key,
-    createdAt: Date.now(),
-    guildId,
-    channelId: interaction.channelId,
-    userId: callerId,
-
-    bet,
-    dealerHand: dealer,
-
-    hands: [player],
-    activeHandIndex: 0,
-
-    didSplit: false,
-    handBets: [bet],
-    handResults: [null],
-    didDoubleOnHand: [false],
-
-    messageLine: `Choose your move. ${CC_EMOJI}`
-  };
-
-  BJ_GAMES.set(key, state);
-
-  const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-
-  return interaction.editReply({
-    embeds: [embed],
-    components: bjButtons(state)
-  });
-}
-// 🔒 LOCK / 🔓 UNLOCK (single channel only)
-if (
-  interaction.isChatInputCommand() &&
-  (interaction.commandName === "lock" || interaction.commandName === "unlock")
-) {
-  await interaction.deferReply({ ephemeral: true });
-
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-    return interaction.editReply("❌ You don’t have permission to use this.");
-  }
-
-  const isLock = interaction.commandName === "lock";
-
-  try {
-    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
-    if (!channel?.isTextBased?.()) {
-      return interaction.editReply("❌ Lock channel not found or not a text channel.");
-    }
-
-    for (const roleId of LOCK_ROLE_IDS) {
-      if (isLock) {
-        await channel.permissionOverwrites.edit(roleId, {
-          SendMessages: false,
-          SendMessagesInThreads: false,
-        });
-      } else {
-        await channel.permissionOverwrites.delete(roleId);
-      }
-    }
-
-    return interaction.editReply(
-      isLock
-        ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
-        : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
-    );
-  } catch (e) {
-    console.error("Lock/unlock error:", e);
-    return interaction.editReply("⚠️ Failed to update channel permissions.");
-  }
-}
-   // BALANCE
-if (interaction.commandName === "balance") {
-  const target = interaction.options.getUser("user") ?? interaction.user;
-
-  const row =
-    (await getUserRow(guildId, target.id)) || (await upsertUserRow(guildId, target.id));
-
-  return interaction.editReply(
-    `💸 <@${target.id}> has **${Number(row.balance ?? 0).toLocaleString("en-US")}** ${cfg.currency_name} <a:CC:1472374417920229398>`
-  );
-}
 
     // DAILY
     if (interaction.commandName === "daily") {
@@ -1371,14 +1388,11 @@ if (interaction.commandName === "balance") {
         ? DateTime.fromISO(row.last_daily_claim_at).setZone(tz)
         : null;
 
-     if (last && hoursBetween(last, now) < 24) {
-  const next = last.plus({ hours: 24 });
-  const unix = Math.floor(next.toSeconds());
-
-  return interaction.editReply(
-    `⏳ Daily cooldown. Try again <t:${unix}:R>`
-  );
-}
+      if (last && hoursBetween(last, now) < 24) {
+        const next = last.plus({ hours: 24 });
+        const unix = Math.floor(next.toSeconds());
+        return interaction.editReply(`⏳ Daily cooldown. Try again <t:${unix}:R>`);
+      }
 
       const grace = Number(cfg.daily_grace_hours ?? 3);
       let streak = Number(row.daily_streak ?? 0);
@@ -1386,7 +1400,7 @@ if (interaction.commandName === "balance") {
       if (!last) streak = 1;
       else {
         const h = hoursBetween(last, now);
-        streak = h <= (24 + grace) ? (streak + 1) : 1;
+        streak = h <= 24 + grace ? streak + 1 : 1;
       }
 
       const base = Number(cfg.daily_base ?? 20);
@@ -1410,9 +1424,11 @@ if (interaction.commandName === "balance") {
         actorId: callerId
       });
 
-    return interaction.editReply(
-  `✅ Daily claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(streak)}**)`
-);
+      return interaction.editReply(
+        `✅ Daily claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(
+          streak
+        )}**)`
+      );
     }
 
     // WEEKLY
@@ -1426,13 +1442,10 @@ if (interaction.commandName === "balance") {
         : null;
 
       if (last && hoursBetween(last, now) < 168) {
-  const next = last.plus({ hours: 168 });
-  const unix = Math.floor(next.toSeconds());
-
-  return interaction.editReply(
-    `⏳ Weekly cooldown. Try again <t:${unix}:R>`
-  );
-}
+        const next = last.plus({ hours: 168 });
+        const unix = Math.floor(next.toSeconds());
+        return interaction.editReply(`⏳ Weekly cooldown. Try again <t:${unix}:R>`);
+      }
 
       const grace = Number(cfg.weekly_grace_hours ?? 12);
       let streak = Number(row.weekly_streak ?? 0);
@@ -1440,7 +1453,7 @@ if (interaction.commandName === "balance") {
       if (!last) streak = 1;
       else {
         const h = hoursBetween(last, now);
-        streak = h <= (168 + grace) ? (streak + 1) : 1;
+        streak = h <= 168 + grace ? streak + 1 : 1;
       }
 
       const base = Number(cfg.weekly_base ?? 150);
@@ -1465,8 +1478,10 @@ if (interaction.commandName === "balance") {
       });
 
       return interaction.editReply(
-  `✅ Weekly claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(streak)}**)`
-);
+        `✅ Weekly claimed: **+${fmtNum(payout)}** ${cfg.currency_name} ${CC_EMOJI} (streak **${fmtNum(
+          streak
+        )}**)`
+      );
     }
 
     // GIVE (admin only)
@@ -1489,15 +1504,14 @@ if (interaction.commandName === "balance") {
 
       if (!res.ok) return interaction.editReply("❌ Could not give cash.");
 
-// get updated balance
-const row = await getUserRow(guildId, target.id);
-const newBal = Number(row?.balance ?? 0);
+      const row = await getUserRow(guildId, target.id);
+      const newBal = Number(row?.balance ?? 0);
 
-return interaction.editReply(
-  `✅ Gave <@${target.id}> **+${fmtNum(amt)}** ${cfg.currency_name}. ` +
-  `New balance **${fmtNum(newBal)}** ${cfg.currency_name} <a:CC:1472374417920229398>`
-);
-}
+      return interaction.editReply(
+        `✅ Gave <@${target.id}> **+${fmtNum(amt)}** ${cfg.currency_name}. ` +
+          `New balance **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
+      );
+    }
 
     // CONFIG (admin)
     if (interaction.commandName === "config") {
@@ -1513,9 +1527,9 @@ return interaction.editReply(
 
         return interaction.editReply(
           `⚙️ **Capo Cash Config**\n` +
-          `• Currency: **${cfg.currency_name}**\n` +
-          `• Rumble win amount: **${cfg.rumble_win_amount || 75}**\n` +
-          `• Rumble message template:\n\`${tpl}\``
+            `• Currency: **${cfg.currency_name}**\n` +
+            `• Rumble win amount: **${cfg.rumble_win_amount || 75}**\n` +
+            `• Rumble message template:\n\`${tpl}\``
         );
       }
 
@@ -1539,7 +1553,7 @@ return interaction.editReply(
       }
     }
 
-    // LEADERBOARD (embed + buttons)
+    // LEADERBOARD (command)
     if (interaction.commandName === "leaderboard") {
       const page = Math.max(1, interaction.options.getInteger("page") || 1);
 
@@ -1563,194 +1577,211 @@ return interaction.editReply(
       });
     }
 
-// COINFLIP
-if (interaction.commandName === "coinflip") {
-  const bet = Math.max(1, interaction.options.getInteger("bet", true));
-  const choice = interaction.options.getString("choice", true);
+    // COINFLIP
+    if (interaction.commandName === "coinflip") {
+      const bet = Math.max(1, interaction.options.getInteger("bet", true));
+      const choice = interaction.options.getString("choice", true);
 
-  await upsertUserRow(guildId, callerId);
+      await upsertUserRow(guildId, callerId);
 
-  const take = await applyBalanceChange({
-    guildId,
-    userId: callerId,
-    amount: -bet,
-    type: "coinflip_bet",
-    reason: `Coinflip bet (${choice})`,
-    actorId: callerId
-  });
+      const take = await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: -bet,
+        type: "coinflip_bet",
+        reason: `Coinflip bet (${choice})`,
+        actorId: callerId
+      });
 
-  if (!take.ok) {
-    return interaction.editReply(
-      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
-    );
+      if (!take.ok) {
+        return interaction.editReply(`❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`);
+      }
+
+      const flip = Math.random() < 0.5 ? "heads" : "tails";
+      const won = flip === choice;
+
+      if (won) {
+        const payout = bet * 2;
+        const profit = payout - bet;
+
+        await applyBalanceChange({
+          guildId,
+          userId: callerId,
+          amount: payout,
+          type: "coinflip_win",
+          reason: `Coinflip won (${flip})`,
+          actorId: "system"
+        });
+
+        const row = await getUserRow(guildId, callerId);
+        const newBal = Number(row?.balance ?? 0);
+
+        return interaction.editReply(
+          `🪙 It landed on **${flip}**!\n` +
+            `<@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+            `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+        );
+      }
+
+      const row = await getUserRow(guildId, callerId);
+      const newBal = Number(row?.balance ?? 0);
+
+      return interaction.editReply(
+        `🪙 It landed on **${flip}**!\n` +
+          `<@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+          `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+      );
+    }
+
+    // DICE
+    if (interaction.commandName === "dice") {
+      const bet = Math.max(1, interaction.options.getInteger("bet", true));
+      await upsertUserRow(guildId, callerId);
+
+      const take = await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: -bet,
+        type: "dice_bet",
+        reason: "Dice bet",
+        actorId: callerId
+      });
+
+      if (!take.ok) {
+        return interaction.editReply(`❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`);
+      }
+
+      const roll = Math.floor(Math.random() * 6) + 1;
+
+      let payout = 0;
+      let resultText = "";
+
+      if (roll === 6) {
+        payout = bet * 6;
+        const profit = payout - bet;
+
+        await applyBalanceChange({
+          guildId,
+          userId: callerId,
+          amount: payout,
+          type: "dice_win",
+          reason: "Rolled a 6",
+          actorId: "system"
+        });
+
+        resultText =
+          `🎲 You rolled **${roll}** — ✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}`;
+      } else {
+        resultText =
+          `🎲 You rolled **${roll}** — ❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}`;
+      }
+
+      const row = await getUserRow(guildId, callerId);
+      const newBal = Number(row?.balance ?? 0);
+
+      return interaction.editReply(
+        `${resultText}\n💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+      );
+    }
+
+    // SLOTS
+    if (interaction.commandName === "slots") {
+      const bet = Math.max(1, interaction.options.getInteger("bet", true));
+      await upsertUserRow(guildId, callerId);
+
+      const take = await applyBalanceChange({
+        guildId,
+        userId: callerId,
+        amount: -bet,
+        type: "slots_bet",
+        reason: "Slots bet",
+        actorId: callerId
+      });
+
+      if (!take.ok) {
+        return interaction.editReply(`❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`);
+      }
+
+      const symbols = ["🍒", "🍋", "💎", "7️⃣", "🔔"];
+      const spin = () => symbols[Math.floor(Math.random() * symbols.length)];
+
+      const a = spin(),
+        b = spin(),
+        c = spin();
+      const reel = `🎰 **${a} ${b} ${c}**`;
+
+      let payout = 0;
+      if (a === b && b === c) payout = bet * 5;
+      else if (a === b || b === c || a === c) payout = bet * 2;
+
+      if (payout > 0) {
+        await applyBalanceChange({
+          guildId,
+          userId: callerId,
+          amount: payout,
+          type: "slots_win",
+          reason: `Slots ${a}${b}${c}`,
+          actorId: "system"
+        });
+
+        const profit = payout - bet;
+        const rowAfter = await getUserRow(guildId, callerId);
+        const newBal = Number(rowAfter?.balance ?? 0);
+
+        return interaction.editReply(
+          `${reel}\n` +
+            `✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+            `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+        );
+      }
+
+      const rowAfter = await getUserRow(guildId, callerId);
+      const newBal = Number(rowAfter?.balance ?? 0);
+
+      return interaction.editReply(
+        `${reel}\n` +
+          `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+          `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+      );
+    }
+  } catch (e) {
+    console.error("Interaction error:", e?.message || e);
+
+    // If we already acknowledged the interaction, edit; otherwise reply
+    try {
+      if (interaction.deferred || interaction.replied) {
+        return interaction.editReply({
+          content: "⚠️ Something went wrong. Try again.",
+          ephemeral: true
+        });
+      }
+      return interaction.reply({
+        content: "⚠️ Something went wrong. Try again.",
+        ephemeral: true
+      });
+    } catch {
+      // swallow secondary failures
+      return;
+    }
   }
+});
 
-  const flip = Math.random() < 0.5 ? "heads" : "tails";
-  const won = flip === choice;
-
-  if (won) {
-    const payout = bet * 2;
-    const profit = payout - bet;
-
-    await applyBalanceChange({
-      guildId,
-      userId: callerId,
-      amount: payout,
-      type: "coinflip_win",
-      reason: `Coinflip won (${flip})`,
-      actorId: "system"
-    });
-
-    const row = await getUserRow(guildId, callerId);
-    const newBal = Number(row?.balance ?? 0);
-
-    return interaction.editReply(
-      `🪙 It landed on **${flip}**!\n` +
-      `<@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-      `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-    );
-  }
-
-  const row = await getUserRow(guildId, callerId);
-  const newBal = Number(row?.balance ?? 0);
-
-  return interaction.editReply(
-    `🪙 It landed on **${flip}**!\n` +
-    `<@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-    `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-  );
-}
-
-// DICE
-if (interaction.commandName === "dice") {
-  const bet = Math.max(1, interaction.options.getInteger("bet", true));
-  await upsertUserRow(guildId, callerId);
-
-  const take = await applyBalanceChange({
-    guildId,
-    userId: callerId,
-    amount: -bet,
-    type: "dice_bet",
-    reason: "Dice bet",
-    actorId: callerId
-  });
-
-  if (!take.ok) {
-    return interaction.editReply(
-      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
-    );
-  }
-
-  const roll = Math.floor(Math.random() * 6) + 1;
-
-  let payout = 0;
-  let resultText = "";
-
-  if (roll === 6) {
-    payout = bet * 6;
-    const profit = payout - bet;
-
-    await applyBalanceChange({
-      guildId,
-      userId: callerId,
-      amount: payout,
-      type: "dice_win",
-      reason: "Rolled a 6",
-      actorId: "system"
-    });
-
-    resultText =
-      `🎲 You rolled **${roll}** — ✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}`;
-  } else {
-    resultText =
-      `🎲 You rolled **${roll}** — ❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}`;
-  }
-
-  const row = await getUserRow(guildId, callerId);
-  const newBal = Number(row?.balance ?? 0);
-
-  return interaction.editReply(
-    `${resultText}\n💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-  );
-}
-
-// SLOTS
-if (interaction.commandName === "slots") {
-  const bet = Math.max(1, interaction.options.getInteger("bet", true));
-  await upsertUserRow(guildId, callerId);
-
-  const take = await applyBalanceChange({
-    guildId,
-    userId: callerId,
-    amount: -bet,
-    type: "slots_bet",
-    reason: "Slots bet",
-    actorId: callerId
-  });
-
-  if (!take.ok) {
-    return interaction.editReply(
-      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
-    );
-  }
-
-  const symbols = ["🍒", "🍋", "💎", "7️⃣", "🔔"];
-  const spin = () => symbols[Math.floor(Math.random() * symbols.length)];
-
-  const a = spin(), b = spin(), c = spin();
-  const reel = `🎰 **${a} ${b} ${c}**`;
-
-  let payout = 0;
-  if (a === b && b === c) payout = bet * 5;
-  else if (a === b || b === c || a === c) payout = bet * 2;
-
-  if (payout > 0) {
-    await applyBalanceChange({
-      guildId,
-      userId: callerId,
-      amount: payout,
-      type: "slots_win",
-      reason: `Slots ${a}${b}${c}`,
-      actorId: "system"
-    });
-
-    const profit = payout - bet;
-    const rowAfter = await getUserRow(guildId, callerId);
-    const newBal = Number(rowAfter?.balance ?? 0);
-
-    return interaction.editReply(
-      `${reel}\n` +
-      `✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-      `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-    );
-  }
-
-  // lost (no payout)
-  const rowAfter = await getUserRow(guildId, callerId);
-  const newBal = Number(rowAfter?.balance ?? 0);
-
-  return interaction.editReply(
-    `${reel}\n` +
-    `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-    `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-  );
-} // end SLOTS command
-
-// ✅ THIS catch must close the try that started above your commands
-} catch (e) {
-  console.error("Interaction error:", e?.message || e);
-
-  if (interaction.deferred || interaction.replied) {
-    return interaction.editReply({
-      content: "⚠️ Something went wrong. Try again.",
-      ephemeral: true
-    });
-  }
-
-  return interaction.reply({
-    content: "⚠️ Something went wrong. Try again.",
-    ephemeral: true
-  });
+// ----------------------------------------------------
+// 2) Replay buttons (no key needed)
+// ----------------------------------------------------
+function bjReplayButtons(lastBet) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bj:replay_same:${lastBet}`)
+        .setLabel("Play again (same bet)")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("bj:replay_new")
+        .setLabel("Play again (new bet)")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 }); // end interactionCreate
 
