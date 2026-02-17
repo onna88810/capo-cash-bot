@@ -1765,7 +1765,7 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
   
-});
+}); // ✅ end interactionCreate (ONLY ONE)
 
 // ----------------------------------------------------
 // 2) Replay buttons (no key needed)
@@ -1784,6 +1784,5 @@ function bjReplayButtons(lastBet) {
     )
   ];
 }
-}); // end interactionCreate
 
 client.login(DISCORD_TOKEN);
