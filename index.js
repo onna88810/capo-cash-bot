@@ -1616,7 +1616,7 @@ if (interaction.commandName === "dice") {
   );
 }
 
-   // SLOTS
+// SLOTS
 if (interaction.commandName === "slots") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
   await upsertUserRow(guildId, callerId);
@@ -1643,9 +1643,11 @@ if (interaction.commandName === "slots") {
   const reel = `🎰 **${a} ${b} ${c}**`;
 
   let payout = 0;
-
   if (a === b && b === c) payout = bet * 5;
   else if (a === b || b === c || a === c) payout = bet * 2;
+
+  const rowBefore = await getUserRow(guildId, callerId);
+  const balBefore = Number(rowBefore?.balance ?? 0);
 
   if (payout > 0) {
     await applyBalanceChange({
@@ -1658,8 +1660,8 @@ if (interaction.commandName === "slots") {
     });
 
     const profit = payout - bet;
-    const row = await getUserRow(guildId, callerId);
-    const newBal = Number(row?.balance ?? 0);
+    const rowAfter = await getUserRow(guildId, callerId);
+    const newBal = Number(rowAfter?.balance ?? 0);
 
     return interaction.editReply(
       `${reel}\n` +
@@ -1668,8 +1670,9 @@ if (interaction.commandName === "slots") {
     );
   }
 
-  const row = await getUserRow(guildId, callerId);
-  const newBal = Number(row?.balance ?? 0);
+  // lost (no payout)
+  const rowAfter = await getUserRow(guildId, callerId);
+  const newBal = Number(rowAfter?.balance ?? 0);
 
   return interaction.editReply(
     `${reel}\n` +
@@ -1678,20 +1681,22 @@ if (interaction.commandName === "slots") {
   );
 }
 
-        } catch (e) {
-    console.error("Interaction error:", e?.message || e);
+// ✅ end of try/catch + interactionCreate handler
+} catch (e) {
+  console.error("Interaction error:", e?.message || e);
 
-    if (interaction.deferred || interaction.replied) {
-      return interaction.editReply({
-        content: "⚠️ Something went wrong. Try again.",
-        ephemeral: true
-      });
-    } else {
-      return interaction.reply({
-        content: "⚠️ Something went wrong. Try again.",
-        ephemeral: true
-      });
+  if (interaction.deferred || interaction.replied) {
+    return interaction.editReply({
+      content: "⚠️ Something went wrong. Try again.",
+      ephemeral: true
+    });
+  } else {
+    return interaction.reply({
+      content: "⚠️ Something went wrong. Try again.",
+      ephemeral: true
+    });
   }
-});
+}
+}); // ✅ MUST be `});` (NOT `));`)
 
 client.login(DISCORD_TOKEN);
