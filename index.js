@@ -1692,7 +1692,6 @@ if (interaction.commandName === "slots") {
         content: "⚠️ Something went wrong. Try again.",
         ephemeral: true
       });
-    }
   }
 });
 
