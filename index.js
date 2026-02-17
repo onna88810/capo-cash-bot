@@ -1328,44 +1328,49 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // 🔒 LOCK / 🔓 UNLOCK (single channel only)
-    if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-        return interaction.editReply("❌ You don’t have permission to use this.");
-      }
-
-      const isLock = interaction.commandName === "lock";
-
-      try {
-        const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
-        if (!channel || !channel.isTextBased()) {
-          return interaction.editReply("❌ Lock channel not found or not a text channel.");
-        }
-
-        for (const roleId of LOCK_ROLE_IDS) {
-  if (isLock) {
-    await channel.permissionOverwrites.edit(roleId, {
-      SendMessages: false,
-      SendMessagesInThreads: false
-    });
-  } else {
-    await channel.permissionOverwrites.edit(roleId, {
-      SendMessages: null,
-      SendMessagesInThreads: null
-    });
+// 🔒 LOCK / 🔓 UNLOCK (single channel only)
+if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+    return interaction.editReply("❌ You don’t have permission to use this.");
   }
-}
 
-        return interaction.editReply(
-          isLock
-            ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
-            : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
-        );
-      } catch (e) {
-        console.error("Lock/unlock error:", e?.message || e);
-        return interaction.editReply("⚠️ Failed to update channel permissions.");
+  const isLock = interaction.commandName === "lock";
+
+  try {
+    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+    if (!channel || !channel.isTextBased()) {
+      return interaction.editReply("❌ Lock channel not found or not a text channel.");
+    }
+
+    for (const roleId of LOCK_ROLE_IDS) {
+      if (isLock) {
+        // Lock = hard deny sending
+        await channel.permissionOverwrites.edit(roleId, {
+          SendMessages: false,
+          SendMessagesInThreads: false
+        });
+      } else {
+        // Unlock = force explicit allows
+        await channel.permissionOverwrites.edit(roleId, {
+          SendMessages: true,
+          SendMessagesInThreads: true,
+          EmbedLinks: true,
+          AttachFiles: true,
+          ReadMessageHistory: true
+        });
       }
     }
+
+    return interaction.editReply(
+      isLock
+        ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
+        : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
+    );
+  } catch (e) {
+    console.error("Lock/unlock error:", e?.message || e);
+    return interaction.editReply("⚠️ Failed to update channel permissions.");
+  }
+}
 
     // BALANCE
     if (interaction.commandName === "balance") {
