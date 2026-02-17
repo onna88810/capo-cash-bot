@@ -1730,11 +1730,11 @@ if (interaction.commandName === "slots") {
   const newBal = Number(rowAfter?.balance ?? 0);
 
   return interaction.editReply(
-  `${reel}\n` +
-  `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-  `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-);
-}
+    `${reel}\n` +
+    `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+    `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+  );
+} // ✅ closes the SLOTS command (or whatever IF this is inside)
 
 // ✅ end of try/catch + interactionCreate handler
 } catch (e) {
@@ -1751,6 +1751,7 @@ if (interaction.commandName === "slots") {
       ephemeral: true
     });
   }
-}); // ✅ MUST be `});` (NOT `));`)
+}
+}); // ✅ end of client.on("interactionCreate"...)
 
 client.login(DISCORD_TOKEN);
