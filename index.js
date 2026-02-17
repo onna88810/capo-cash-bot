@@ -1314,14 +1314,11 @@ if (interaction.commandName === "balance") {
         : null;
 
      if (last && hoursBetween(last, now) < 24) {
-  // next time they can claim (exact)
   const next = last.plus({ hours: 24 });
-
-  // Discord timestamp needs UNIX seconds
   const unix = Math.floor(next.toSeconds());
 
   return interaction.editReply(
-    `⏳ Daily cooldown. Try again <t:${unix}:R>\n🗓️ Next daily: <t:${unix}:F>`
+    `⏳ Daily cooldown. Try again <t:${unix}:R>`
   );
 }
 
