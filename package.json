@@ -4,13 +4,16 @@
   "private": true,
   "type": "module",
   "main": "index.js",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node index.js"
   },
-"dependencies": {
-  "@supabase/supabase-js": "^2.45.4",
-  "discord.js": "^14.16.3",
-  "luxon": "^3.5.0",
-  "node-cron": "^3.0.3"
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "discord.js": "^14.16.3",
+    "luxon": "^3.5.0",
+    "node-cron": "^3.0.3"
+  }
 }
