@@ -1562,6 +1562,7 @@ if (interaction.commandName === "coinflip") {
     `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
+
 // DICE
 if (interaction.commandName === "dice") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
@@ -1615,7 +1616,7 @@ if (interaction.commandName === "dice") {
   );
 }
 
-    // SLOTS
+   // SLOTS
 if (interaction.commandName === "slots") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
   await upsertUserRow(guildId, callerId);
@@ -1628,7 +1629,12 @@ if (interaction.commandName === "slots") {
     reason: "Slots bet",
     actorId: callerId
   });
-  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+
+  if (!take.ok) {
+    return interaction.editReply(
+      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
+    );
+  }
 
   const symbols = ["🍒", "🍋", "💎", "7️⃣", "🔔"];
   const spin = () => symbols[Math.floor(Math.random() * symbols.length)];
@@ -1637,6 +1643,7 @@ if (interaction.commandName === "slots") {
   const reel = `🎰 **${a} ${b} ${c}**`;
 
   let payout = 0;
+
   if (a === b && b === c) payout = bet * 5;
   else if (a === b || b === c || a === c) payout = bet * 2;
 
@@ -1650,13 +1657,14 @@ if (interaction.commandName === "slots") {
       actorId: "system"
     });
 
+    const profit = payout - bet;
     const row = await getUserRow(guildId, callerId);
     const newBal = Number(row?.balance ?? 0);
 
     return interaction.editReply(
       `${reel}\n` +
-      `<@${callerId}> won **${payout - bet} ${cfg.currency_name}**\n` +
-      `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+      `✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+      `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
     );
   }
 
@@ -1665,14 +1673,13 @@ if (interaction.commandName === "slots") {
 
   return interaction.editReply(
     `${reel}\n` +
-    `<@${callerId}> lost **${bet} ${cfg.currency_name}**\n` +
-    `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+    `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+    `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
+}
 
-      if (payout === 0) return interaction.editReply(`${reel}\n❌ You lost **${bet}**.`);
-      return interaction.editReply(`${reel}\n✅ You won! (**+${payout - bet}** profit)`);
-      } catch (e) {
+        } catch (e) {
     console.error("Interaction error:", e?.message || e);
 
     if (interaction.deferred || interaction.replied) {
