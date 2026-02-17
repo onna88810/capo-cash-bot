@@ -1734,6 +1734,7 @@ if (interaction.commandName === "slots") {
   );
 } // end SLOTS command
 
+// ✅ THIS catch must close the try that started above your commands
 } catch (e) {
   console.error("Interaction error:", e?.message || e);
 
