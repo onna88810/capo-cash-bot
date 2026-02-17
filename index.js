@@ -435,12 +435,21 @@ client.once("ready", async () => {
 
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
+  // 🌎 Register GLOBAL commands
   await rest.put(
-  Routes.applicationCommands(DISCORD_APP_ID),
-  { body: COMMANDS }
-);
+    Routes.applicationCommands(DISCORD_APP_ID),
+    { body: COMMANDS }
+  );
 
-console.log("Global slash commands registered.");
+  console.log("Global slash commands registered.");
+
+  // 🧹 TEMP: Clear old guild commands in MGS
+  await rest.put(
+    Routes.applicationGuildCommands(DISCORD_APP_ID, "PUT_MGS_GUILD_ID_HERE"),
+    { body: [] }
+  );
+
+  console.log("Cleared MGS guild commands.");
 });
 
 // ===== AUTO RUMBLE PAYOUT =====
