@@ -21,6 +21,8 @@ const LOCK_ROLE_IDS = [
   "1457169070452379680",
   "1457174938380402739"
 ];
+// The ONE channel you want /lock and /unlock to affect:
+const LOCK_CHANNEL_ID = "1469891401314603018";
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
 import {
