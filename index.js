@@ -445,7 +445,7 @@ client.once("ready", async () => {
 
   // 🧹 TEMP: Clear old guild commands in MGS
   await rest.put(
-    Routes.applicationGuildCommands(DISCORD_APP_ID, "PUT_MGS_GUILD_ID_HERE"),
+    Routes.applicationGuildCommands(DISCORD_APP_ID, "1389493689398595635"),
     { body: [] }
   );
 
