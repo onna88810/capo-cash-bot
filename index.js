@@ -1368,11 +1368,13 @@ if (interaction.commandName === "balance") {
         : null;
 
       if (last && hoursBetween(last, now) < 168) {
-        const remaining = 168 - hoursBetween(last, now);
-        return interaction.editReply(
-          `⏳ Weekly cooldown. Try again in ~${(remaining / 24).toFixed(2)} days.`
-        );
-      }
+  const next = last.plus({ hours: 168 });
+  const unix = Math.floor(next.toSeconds());
+
+  return interaction.editReply(
+    `⏳ Weekly cooldown. Try again <t:${unix}:R>`
+  );
+}
 
       const grace = Number(cfg.weekly_grace_hours ?? 12);
       let streak = Number(row.weekly_streak ?? 0);
