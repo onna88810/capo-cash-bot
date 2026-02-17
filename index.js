@@ -1562,7 +1562,7 @@ if (interaction.commandName === "coinflip") {
     `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
-    // DICE
+// DICE
 if (interaction.commandName === "dice") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
   await upsertUserRow(guildId, callerId);
@@ -1577,17 +1577,19 @@ if (interaction.commandName === "dice") {
   });
 
   if (!take.ok) {
-    return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+    return interaction.editReply(
+      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
+    );
   }
 
   const roll = Math.floor(Math.random() * 6) + 1;
-  const emoji = "<a:CC:1472374417920229398>";
 
   let payout = 0;
   let resultText = "";
 
   if (roll === 6) {
     payout = bet * 6;
+    const profit = payout - bet;
 
     await applyBalanceChange({
       guildId,
@@ -1598,17 +1600,18 @@ if (interaction.commandName === "dice") {
       actorId: "system"
     });
 
-    const profit = payout - bet;
-    resultText = `🎲 You rolled **${roll}** — ✅ <@${callerId}> won **${profit}**!`;
+    resultText =
+      `🎲 You rolled **${roll}** — ✅ <@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}`;
   } else {
-    resultText = `🎲 You rolled **${roll}** — ❌ <@${callerId}> lost **${bet}**.`;
+    resultText =
+      `🎲 You rolled **${roll}** — ❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}`;
   }
 
   const row = await getUserRow(guildId, callerId);
   const newBal = Number(row?.balance ?? 0);
 
   return interaction.editReply(
-    `${resultText}\n💰 New Balance: **${newBal}** ${emoji}`
+    `${resultText}\n💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
 
