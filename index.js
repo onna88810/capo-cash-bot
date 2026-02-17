@@ -1730,10 +1730,10 @@ if (interaction.commandName === "slots") {
   const newBal = Number(rowAfter?.balance ?? 0);
 
   return interaction.editReply(
-    `${reel}\n` +
-    `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
-    `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
-  );
+  `${reel}\n` +
+  `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+  `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
+);
 }
 
 // ✅ end of try/catch + interactionCreate handler
