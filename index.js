@@ -1343,15 +1343,18 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         for (const roleId of LOCK_ROLE_IDS) {
-          if (isLock) {
-            await channel.permissionOverwrites.edit(roleId, {
-              SendMessages: false,
-              SendMessagesInThreads: false
-            });
-          } else {
-            await channel.permissionOverwrites.delete(roleId);
-          }
-        }
+  if (isLock) {
+    await channel.permissionOverwrites.edit(roleId, {
+      SendMessages: false,
+      SendMessagesInThreads: false
+    });
+  } else {
+    await channel.permissionOverwrites.edit(roleId, {
+      SendMessages: null,
+      SendMessagesInThreads: null
+    });
+  }
+}
 
         return interaction.editReply(
           isLock
