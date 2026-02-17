@@ -1751,7 +1751,6 @@ if (interaction.commandName === "slots") {
       ephemeral: true
     });
   }
-}
 }); // ✅ MUST be `});` (NOT `));`)
 
 client.login(DISCORD_TOKEN);
