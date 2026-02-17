@@ -1505,7 +1505,7 @@ return interaction.editReply(
       });
     }
 
- // COINFLIP
+// COINFLIP
 if (interaction.commandName === "coinflip") {
   const bet = Math.max(1, interaction.options.getInteger("bet", true));
   const choice = interaction.options.getString("choice", true);
@@ -1520,16 +1520,24 @@ if (interaction.commandName === "coinflip") {
     reason: `Coinflip bet (${choice})`,
     actorId: callerId
   });
-  if (!take.ok) return interaction.editReply("❌ You don’t have enough Capo Cash for that bet.");
+
+  if (!take.ok) {
+    return interaction.editReply(
+      `❌ You don’t have enough ${cfg.currency_name} for that bet. ${CC_EMOJI}`
+    );
+  }
 
   const flip = Math.random() < 0.5 ? "heads" : "tails";
   const won = flip === choice;
 
   if (won) {
+    const payout = bet * 2;
+    const profit = payout - bet;
+
     await applyBalanceChange({
       guildId,
       userId: callerId,
-      amount: bet * 2,
+      amount: payout,
       type: "coinflip_win",
       reason: `Coinflip won (${flip})`,
       actorId: "system"
@@ -1540,8 +1548,8 @@ if (interaction.commandName === "coinflip") {
 
     return interaction.editReply(
       `🪙 It landed on **${flip}**!\n` +
-      `<@${callerId}> won **${bet} ${cfg.currency_name}**\n` +
-      `New Balance: **${fmt(newBal)}** <a:CC:1472374417920229398>`
+      `<@${callerId}> won **${fmt(profit)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+      `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
     );
   }
 
@@ -1550,8 +1558,8 @@ if (interaction.commandName === "coinflip") {
 
   return interaction.editReply(
     `🪙 It landed on **${flip}**!\n` +
-    `<@${callerId}> lost **${bet} ${cfg.currency_name}**\n` +
-    `New Balance: **${newBal}** <a:CC:1472374417920229398>`
+    `<@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
+    `New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
 }
     // DICE
