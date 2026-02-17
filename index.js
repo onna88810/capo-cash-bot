@@ -1701,9 +1701,6 @@ if (interaction.commandName === "slots") {
   if (a === b && b === c) payout = bet * 5;
   else if (a === b || b === c || a === c) payout = bet * 2;
 
-  const rowBefore = await getUserRow(guildId, callerId);
-  const balBefore = Number(rowBefore?.balance ?? 0);
-
   if (payout > 0) {
     await applyBalanceChange({
       guildId,
@@ -1725,7 +1722,7 @@ if (interaction.commandName === "slots") {
     );
   }
 
-    // lost (no payout)
+  // lost (no payout)
   const rowAfter = await getUserRow(guildId, callerId);
   const newBal = Number(rowAfter?.balance ?? 0);
 
@@ -1734,7 +1731,7 @@ if (interaction.commandName === "slots") {
     `❌ <@${callerId}> lost **${fmt(bet)} ${cfg.currency_name}** ${CC_EMOJI}\n` +
     `💰 New Balance: **${fmt(newBal)} ${cfg.currency_name}** ${CC_EMOJI}`
   );
-} // closes the command block
+} // end SLOTS command
 
 } catch (e) {
   console.error("Interaction error:", e?.message || e);
@@ -1744,13 +1741,13 @@ if (interaction.commandName === "slots") {
       content: "⚠️ Something went wrong. Try again.",
       ephemeral: true
     });
-  } else {
-    return interaction.reply({
-      content: "⚠️ Something went wrong. Try again.",
-      ephemeral: true
-    });
   }
+
+  return interaction.reply({
+    content: "⚠️ Something went wrong. Try again.",
+    ephemeral: true
+  });
 }
-}); // closes client.on("interactionCreate")
+}); // end interactionCreate
 
 client.login(DISCORD_TOKEN);
