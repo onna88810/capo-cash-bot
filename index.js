@@ -276,7 +276,7 @@ function buildLeaderboardEmbed({ guildName, currencyName, page, totalPages, rows
   }
 
   const lines = rows
-    .map((r) => `**${r.rank}.** <@${r.user_id}> — **${r.balance}** ${currencyName}`)
+    .map((r) => `**${r.rank}.** <@${r.user_id}> — **${fmt(r.balance)}** ${currencyName}`)
     .join("\n");
 
   embed.addFields({ name: "Top Players", value: lines });
