@@ -1000,14 +1000,31 @@ client.on("interactionCreate", async (interaction) => {
       // key is always last segment(s)
       const key = parts.slice(2).join(":");
 
-      const state = SLOT_GAMES.get(key);
-      if (!state || slotsExpired(state)) {
-        SLOT_GAMES.delete(key);
-        return interaction.editReply({
-          content: "⏳ Slots game expired. Run `/slots` again.",
-          components: []
-        });
-      }
+      let state = SLOT_GAMES.get(key);
+
+// If bot restarted / different instance, rebuild state from the key
+if (!state) {
+  // key format: slots_${guildId}_${channelId}_${userId}
+  const partsKey = key.split("_");
+  const guildId = partsKey[1];
+  const channelId = partsKey[2];
+  const userId = partsKey[3];
+
+  state = {
+    key,
+    createdAt: Date.now(),
+    guildId,
+    channelId,
+    userId,
+    linesCount: null
+  };
+
+  SLOT_GAMES.set(key, state);
+}
+
+// Only enforce TTL if you want; personally I'd just refresh TTL on click
+state.createdAt = Date.now();
+SLOT_GAMES.set(key, state);
 
       if (interaction.user.id !== state.userId) {
         return interaction.followUp({
