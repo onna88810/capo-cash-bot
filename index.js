@@ -1006,7 +1006,7 @@ const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
 // generate PNG buffer (safe fallback if image fails)
 let boardPng = null;
 try {
-  boardPng = buildSlotsBoardImage(grid, winningLinePaths);
+  boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
 } catch (err) {
   console.error("Slots board image render failed:", err?.message || err);
 }
