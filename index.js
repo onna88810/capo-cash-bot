@@ -79,11 +79,45 @@ const fmtNum = (n) => Number(n ?? 0).toLocaleString("en-US");
 if (!DISCORD_TOKEN || !DISCORD_APP_ID) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_APP_ID env vars.");
 }
-// ===== Slots (interactive) =====
+
+// =====================================================
+// 🎰 SLOTS (interactive) — UPDATED PAYOUT RULES
+// =====================================================
 const SLOT_GAMES = new Map();
 const SLOT_TTL_MS = 5 * 60 * 1000;
+
+// 8 pay lines total (player can pick 1–7 lines, or choose an 8-line tier)
 const SLOT_LINES_TOTAL = 8;
-const SLOT_LINE_BET = 5; // 5 CC per line
+
+// Tier definitions (based on your spec)
+const SLOT_TIERS = {
+  single: {
+    id: "single",
+    label: "Single Lines",
+    maxLines: 7,
+    betPerLine: 5,
+    winPerLine: 10,      // total return per winning line
+    profitPerLine: 5     // informational
+  },
+  all10: {
+    id: "all10",
+    label: "All Lines",
+    lines: 8,
+    betPerLine: 10,
+    winPerLine: 50,      // total return per winning line
+    profitPerLine: 40,
+    jackpot: { amount: 1600, chance: 0.18 } // only if ALL 8 lines win
+  },
+  max50: {
+    id: "max50",
+    label: "MAX BET",
+    lines: 8,
+    betPerLine: 50,
+    winPerLine: 300,     // total return per winning line
+    profitPerLine: 250,
+    jackpot: { amount: 3200, chance: 0.10 } // only if ALL 8 lines win (max bet only)
+  }
+};
 
 // 3x3 grid indices: [row][col] where row 0=top, 1=mid, 2=bot; col 0..2
 const SLOT_PAYLINES = [
@@ -105,13 +139,13 @@ const SLOT_PAYLINES = [
   [[0,0],[1,1],[0,2]],
 ];
 
-// Weighted symbols + paytable multipliers (per winning line)
+// Weighted symbols (visuals only now)
 const SLOT_SYMBOLS = [
-  { sym: "🍒", w: 40, mult: 5 },
-  { sym: "🍋", w: 30, mult: 6 },
-  { sym: "🔔", w: 18, mult: 8 },
-  { sym: "💎", w: 9,  mult: 15 },
-  { sym: "7️⃣", w: 3,  mult: 50 },
+  { sym: "🍒", w: 40 },
+  { sym: "🍋", w: 30 },
+  { sym: "🔔", w: 18 },
+  { sym: "💎", w: 9  },
+  { sym: "7️⃣", w: 3  },
 ];
 
 function slotsKey(guildId, channelId, userId) {
@@ -140,11 +174,9 @@ function slotsFmtGrid(grid) {
   const row = (r) => `${grid[r][0]} ${grid[r][1]} ${grid[r][2]}`;
   return `\n${row(0)}\n${row(1)}\n${row(2)}\n`;
 }
-function slotsMultForSymbol(sym) {
-  return SLOT_SYMBOLS.find(x => x.sym === sym)?.mult ?? 0;
-}
+
+// Evaluate wins (payout is computed later based on tier)
 function slotsEval(grid, linesCount) {
-  let payout = 0;
   const wins = [];
 
   for (let i = 0; i < linesCount; i++) {
@@ -154,20 +186,26 @@ function slotsEval(grid, linesCount) {
     const c = grid[line[2][0]][line[2][1]];
 
     if (a === b && b === c) {
-      const mult = slotsMultForSymbol(a);
-      const win = SLOT_LINE_BET * mult;
-      payout += win;
-      wins.push({ line: i + 1, sym: a, win });
+      wins.push({ line: i + 1, sym: a });
     }
   }
 
-  return { payout, wins };
+  return { wins };
+}
+
+// Determine tier + pricing based on the user's selection
+function slotsResolveTier(linesCount, tierId) {
+  // tierId can be "all10" or "max50" when linesCount===8
+  if (linesCount === 8) {
+    return SLOT_TIERS[tierId === "max50" ? "max50" : "all10"];
+  }
+  return SLOT_TIERS.single;
 }
 
 function slotsLineButtons(state) {
   const key = state.key;
 
-  // 1..7 lines + MAX BET (8)
+  // 1..7 lines (single tier)
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`sl:lines:1:${key}`).setLabel("1 Line").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`sl:lines:2:${key}`).setLabel("2 Lines").setStyle(ButtonStyle.Secondary),
@@ -178,14 +216,17 @@ function slotsLineButtons(state) {
     new ButtonBuilder().setCustomId(`sl:lines:5:${key}`).setLabel("5 Lines").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`sl:lines:6:${key}`).setLabel("6 Lines").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`sl:lines:7:${key}`).setLabel("7 Lines").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:8:${key}`).setLabel("MAX BET").setStyle(ButtonStyle.Success),
+    // two 8-line tier buttons:
+    new ButtonBuilder().setCustomId(`sl:all10:${key}`).setLabel("All Lines").setStyle(ButtonStyle.Primary),
+  );
+  const row3 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sl:max50:${key}`).setLabel("MAX BET").setStyle(ButtonStyle.Success),
   );
 
-  return [row1, row2];
+  return [row1, row2, row3];
 }
 
 function slotsReplayButtons(state) {
-  // same bet = spin again using state.linesCount
   const key = state.key;
   const lines = state.linesCount ?? 0;
 
@@ -204,29 +245,43 @@ function slotsReplayButtons(state) {
   ];
 }
 
-function slotsEmbed(cfg, state, { title = "🎰 Capo Cash Slots", status = "", grid = null, wins = [], payout = 0 } = {}) {
+function slotsEmbed(cfg, state, {
+  title = "🎰 Capo Cash Slots",
+  status = "",
+  grid = null,
+  wins = [],
+  payout = 0,
+  tier = null,
+  totalBet = 0
+} = {}) {
   const currency = cfg?.currency_name || "Capo Cash";
   const lines = state.linesCount ?? 0;
-  const totalBet = lines > 0 ? lines * SLOT_LINE_BET : 0;
 
   const winLinesText =
     wins.length === 0
       ? "None"
-      : wins.map(w => `Line ${w.line}: ${w.sym} **+${fmt(w.win)}**`).join("\n");
+      : wins.map(w => `Line ${w.line}: ${w.sym}`).join("\n");
+
+  const tierLine = tier
+    ? `**Mode:** ${tier.label}\n**Bet:** ${fmt(totalBet)} ${currency} (${fmt(tier.betPerLine)}/line)\n`
+    : "";
 
   const desc =
     (lines > 0
-      ? `**Lines:** ${lines}/${SLOT_LINES_TOTAL}\n**Bet:** ${fmt(totalBet)} ${currency} (${SLOT_LINE_BET}/line)\n`
-      : `Pick how many lines to bet (each line is **${SLOT_LINE_BET}** ${currency}).\n`) +
+      ? `**Lines:** ${lines}/${SLOT_LINES_TOTAL}\n${tierLine}`
+      : `Pick your play:\n• **1–7 lines** (${fmt(SLOT_TIERS.single.betPerLine)}/line)\n• **All Lines** (${fmt(SLOT_TIERS.all10.betPerLine)}/line)\n• **MAX BET** (${fmt(SLOT_TIERS.max50.betPerLine)}/line)\n`) +
     (status ? `\n**Status:** ${status}\n` : "") +
     (grid ? `\n\`\`\`\n${slotsFmtGrid(grid)}\`\`\`\n` : "") +
-    (lines > 0 ? `**Winning Lines:**\n${winLinesText}\n\n**Payout:** ${fmt(payout)} ${currency}\n` : "");
+    (lines > 0
+      ? `**Winning Lines:**\n${winLinesText}\n\n**Payout:** ${fmt(payout)} ${currency}\n`
+      : "");
 
   return new EmbedBuilder()
     .setTitle(title)
     .setDescription(desc)
     .setTimestamp(new Date());
 }
+
 // ===== Blackjack: in-memory active games (per user per channel) =====
 const BJ_GAMES = new Map(); // key => state
 const BJ_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -731,6 +786,7 @@ client.on("messageCreate", async (message) => {
     console.error("Rumble payout error:", e?.message || e);
   }
 });
+
 // ==============================
 // 🎰 SLOT BOARD IMAGE GENERATOR
 // ==============================
@@ -765,18 +821,15 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
       const emoji = grid[row][col];
       const dataUri = await getTwemojiDataUri(emoji);
 
-      // If we got a twemoji svg, draw it as an image
       if (dataUri) {
-        const size = 92; // tweak this if you want bigger/smaller
+        const size = 92;
         const ix = x + (cellSize - size) / 2;
         const iy = y + (cellSize - size) / 2;
 
         svg += `
-  <image x="${ix}" y="${iy}" width="${size}" height="${size}"
-    href="${dataUri}" />
-`;
+          <image x="${ix}" y="${iy}" width="${size}" height="${size}" href="${dataUri}" />
+        `;
       } else {
-        // fallback (won't show for emoji, but avoids crashing if mapping missing)
         svg += `
           <text x="${x + cellSize / 2}" y="${y + cellSize / 2 + 15}"
             font-size="60" text-anchor="middle" fill="white">?</text>
@@ -944,10 +997,8 @@ client.on("interactionCreate", async (interaction) => {
       const parts = interaction.customId.split(":");
       const action = parts[1];
 
-      const key =
-        action === "lines"
-          ? parts.slice(3).join(":")
-          : parts.slice(2).join(":");
+      // key is always last segment(s)
+      const key = parts.slice(2).join(":");
 
       const state = SLOT_GAMES.get(key);
       if (!state || slotsExpired(state)) {
@@ -968,21 +1019,25 @@ client.on("interactionCreate", async (interaction) => {
       const cfg = await getConfig(state.guildId);
       const currency = cfg.currency_name || "Capo Cash";
 
-      const runSpin = async (linesCount) => {
-        const totalBet = linesCount * SLOT_LINE_BET;
+      const runSpin = async (linesCount, tierId = null) => {
+        const tier = slotsResolveTier(linesCount, tierId);
+        const betPerLine = tier.betPerLine;
+        const totalBet = linesCount * betPerLine;
 
         const take = await applyBalanceChange({
           guildId: state.guildId,
           userId: state.userId,
           amount: -totalBet,
           type: "slots_bet",
-          reason: `Slots bet (${linesCount} lines)`,
+          reason: `Slots bet (${tier.label}, ${linesCount} lines)`,
           actorId: state.userId
         });
 
         if (!take.ok) {
           const embed = slotsEmbed(cfg, state, {
-            status: `❌ Not enough ${currency}.`
+            status: `❌ Not enough ${currency}.`,
+            tier,
+            totalBet
           });
           return interaction.editReply({
             embeds: [embed],
@@ -991,96 +1046,129 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         const grid = slotsBuildGrid();
-const { payout, wins } = slotsEval(grid, linesCount);
+        const { wins } = slotsEval(grid, linesCount);
 
-// pay winnings
-if (payout > 0) {
-  await applyBalanceChange({
-    guildId: state.guildId,
-    userId: state.userId,
-    amount: payout,
-    type: "slots_win",
-    reason: `Slots win (${linesCount} lines)`,
-    actorId: "system"
-  });
-}
+        // Compute payout based on tier + wins
+        let payout = wins.length * tier.winPerLine;
+        let jackpotHit = false;
 
-const row = await getUserRow(state.guildId, state.userId);
-const newBal = Number(row?.balance ?? 0);
+        if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
+          if (Math.random() < tier.jackpot.chance) {
+            payout = tier.jackpot.amount;
+            jackpotHit = true;
+          }
+        }
 
-// build winning line coordinate paths for the image generator
-const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
+        // pay winnings
+        if (payout > 0) {
+          await applyBalanceChange({
+            guildId: state.guildId,
+            userId: state.userId,
+            amount: payout,
+            type: jackpotHit ? "slots_jackpot" : "slots_win",
+            reason: jackpotHit ? `Slots JACKPOT (${tier.label})` : `Slots win (${tier.label})`,
+            actorId: "system"
+          });
+        }
 
-// generate PNG buffer (safe fallback if image fails)
-let boardPng = null;
-try {
-  boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
-} catch (err) {
-  console.error("Slots board image render failed:", err?.message || err);
-}
+        const row = await getUserRow(state.guildId, state.userId);
+        const newBal = Number(row?.balance ?? 0);
 
-// net / status text
-const net = payout - totalBet;
+        // build winning line coordinate paths for the image generator
+        const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
 
-const status =
-  payout > 0
-    ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
-      `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
-    : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
-      `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
+        // generate PNG buffer (safe fallback if image fails)
+        let boardPng = null;
+        try {
+          boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
+        } catch (err) {
+          console.error("Slots board image render failed:", err?.message || err);
+        }
 
-// update state for replay
-state.linesCount = linesCount;
-state.lastBetTotal = totalBet;
-SLOT_GAMES.set(key, state);
+        // status text
+        const net = payout - totalBet;
 
-// build embed
-const embed = slotsEmbed(cfg, state, {
-  status,
-  grid: null, // IMPORTANT: don’t print emoji grid text anymore
-  wins,
-  payout
-});
+        const status =
+          jackpotHit
+            ? `🏆 **JACKPOT!** You hit **${fmt(payout)}** ${currency}! ${CC_EMOJI}\n` +
+              `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+            : payout > 0
+            ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
+              `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+            : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
+              `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
 
-// attach image to embed if we successfully generated it
-if (boardPng) embed.setImage("attachment://slots.png");
+        // update state for replay
+        state.linesCount = linesCount;
+        state.tierId = tier.id;
+        state.lastBetTotal = totalBet;
+        SLOT_GAMES.set(key, state);
 
-return interaction.editReply({
-  embeds: [embed],
-  files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
-  components: slotsReplayButtons(state)
-});
-}; // ✅ END runSpin
+        // build embed
+        const embed = slotsEmbed(cfg, state, {
+          status,
+          grid: null,
+          wins,
+          payout,
+          tier,
+          totalBet
+        });
 
-// ✅ Route the button actions
-if (action === "lines") {
-  const linesCount = Number(parts[2]);
-  state.linesCount = linesCount;
-  SLOT_GAMES.set(key, state);
-  return runSpin(linesCount);
-}
+        if (boardPng) embed.setImage("attachment://slots.png");
 
-if (action === "again_same") {
-  const linesCount = Number(state.linesCount || 0);
-  if (!linesCount) {
-    const embed = slotsEmbed(cfg, state, { status: "Pick your lines first." });
-    return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
-  }
-  return runSpin(linesCount);
-}
+        return interaction.editReply({
+          embeds: [embed],
+          files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+          components: slotsReplayButtons(state)
+        });
+      }; // ✅ END runSpin
 
-if (action === "new_game") {
-  state.linesCount = null;
-  SLOT_GAMES.set(key, state);
+      // ✅ Route the button actions
+      if (action === "lines") {
+        const linesCount = Number(parts[2]);
+        state.linesCount = linesCount;
+        state.tierId = "single";
+        SLOT_GAMES.set(key, state);
+        return runSpin(linesCount, "single");
+      }
 
-  const embed = slotsEmbed(cfg, state, { status: "Select how many lines to bet." });
-  return interaction.editReply({
-    embeds: [embed],
-    components: slotsLineButtons(state),
-    files: []
-  });
-}
-}
+      if (action === "all10") {
+        state.linesCount = 8;
+        state.tierId = "all10";
+        SLOT_GAMES.set(key, state);
+        return runSpin(8, "all10");
+      }
+
+      if (action === "max50") {
+        state.linesCount = 8;
+        state.tierId = "max50";
+        SLOT_GAMES.set(key, state);
+        return runSpin(8, "max50");
+      }
+
+      if (action === "again_same") {
+        const linesCount = Number(state.linesCount || 0);
+        if (!linesCount) {
+          const embed = slotsEmbed(cfg, state, { status: "Pick your play first." });
+          return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
+        }
+        return runSpin(linesCount, state.tierId || (linesCount === 8 ? "all10" : "single"));
+      }
+
+      if (action === "new_game") {
+        state.linesCount = null;
+        state.tierId = null;
+        SLOT_GAMES.set(key, state);
+
+        const embed = slotsEmbed(cfg, state, { status: "Select how you want to play." });
+        return interaction.editReply({
+          embeds: [embed],
+          components: slotsLineButtons(state),
+          files: []
+        });
+      }
+    }
+
     // ====================================================
     // SLASH COMMANDS
     // ====================================================
@@ -1095,6 +1183,8 @@ if (action === "new_game") {
     const tz = cfg?.timezone || "America/Chicago";
 
     // ---------- /slots ----------
+    // NOTE: This index already expects /slots with NO bet option.
+    // If Discord still shows a bet option, remove it from commands.js then re-deploy.
     if (interaction.commandName === "slots") {
       await upsertUserRow(guildId, callerId);
 
@@ -1106,13 +1196,14 @@ if (action === "new_game") {
         guildId,
         channelId: interaction.channelId,
         userId: callerId,
-        linesCount: null
+        linesCount: null,
+        tierId: null
       };
 
       SLOT_GAMES.set(key, state);
 
       const embed = slotsEmbed(cfg, state, {
-        status: "Select how many lines to bet."
+        status: "Select how you want to play."
       });
 
       return interaction.editReply({
@@ -1120,6 +1211,7 @@ if (action === "new_game") {
         components: slotsLineButtons(state)
       });
     }
+
     // ===== RUMBLE (admin) =====
     if (interaction.commandName === "rumble") {
       const sub = interaction.options.getSubcommand();
@@ -1266,45 +1358,43 @@ if (action === "new_game") {
       });
     }
 
-// 🔒 LOCK / 🔓 UNLOCK (single channel only)
-if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
-  const isLock = interaction.commandName === "lock";
+    // 🔒 LOCK / 🔓 UNLOCK (single channel only)
+    if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+      const isLock = interaction.commandName === "lock";
 
-  try {
-    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) {
-      return interaction.editReply("❌ Lock channel not found or not a text channel.");
-    }
+      try {
+        const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+        if (!channel || !channel.isTextBased()) {
+          return interaction.editReply("❌ Lock channel not found or not a text channel.");
+        }
 
-    for (const roleId of LOCK_ROLE_IDS) {
-      if (isLock) {
-        // lock = force deny send perms
-        await channel.permissionOverwrites.edit(roleId, {
-          SendMessages: false,
-          SendMessagesInThreads: false
-        });
-      } else {
-        // unlock = force allow perms (your preferred defaults)
-        await channel.permissionOverwrites.edit(roleId, {
-          SendMessages: true,
-          SendMessagesInThreads: true,
-          EmbedLinks: true,
-          AttachFiles: true,
-          ReadMessageHistory: true
-        });
+        for (const roleId of LOCK_ROLE_IDS) {
+          if (isLock) {
+            await channel.permissionOverwrites.edit(roleId, {
+              SendMessages: false,
+              SendMessagesInThreads: false
+            });
+          } else {
+            await channel.permissionOverwrites.edit(roleId, {
+              SendMessages: true,
+              SendMessagesInThreads: true,
+              EmbedLinks: true,
+              AttachFiles: true,
+              ReadMessageHistory: true
+            });
+          }
+        }
+
+        return interaction.editReply(
+          isLock
+            ? `🔒 The arena is now locked.`
+            : `🔓 The arena is now open.`
+        );
+      } catch (e) {
+        console.error("Lock/unlock error:", e?.message || e);
+        return interaction.editReply("⚠️ Failed to update channel permissions.");
       }
     }
-
-return interaction.editReply(
-  isLock
-    ? `🔒 The arena is now locked.`
-    : `🔓 The arena is now open.`
-);
-  } catch (e) {
-    console.error("Lock/unlock error:", e?.message || e);
-    return interaction.editReply("⚠️ Failed to update channel permissions.");
-  }
-}
 
     // BALANCE
     if (interaction.commandName === "balance") {
@@ -1451,42 +1541,42 @@ return interaction.editReply(
           `New balance **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
       );
     }
-    
-// REMOVE (staff only)
-if (interaction.commandName === "remove") {
-  const member = interaction.member;
 
-  const isStaff =
-    member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
-    member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
-    member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+    // REMOVE (staff only)
+    if (interaction.commandName === "remove") {
+      const member = interaction.member;
 
-  if (!isStaff) {
-    return interaction.editReply("❌ Staff only.");
-  }
+      const isStaff =
+        member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+        member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
+        member.permissions.has(PermissionsBitField.Flags.ManageMessages);
 
-  const target = interaction.options.getUser("user", true);
-  const amt = Math.max(1, Math.abs(interaction.options.getInteger("amount", true)));
+      if (!isStaff) {
+        return interaction.editReply("❌ Staff only.");
+      }
 
-  const res = await applyBalanceChange({
-    guildId,
-    userId: target.id,
-    amount: -amt,
-    type: "remove",
-    reason: "Manual remove",
-    actorId: callerId
-  });
+      const target = interaction.options.getUser("user", true);
+      const amt = Math.max(1, Math.abs(interaction.options.getInteger("amount", true)));
 
-  if (!res.ok) return interaction.editReply("❌ Could not remove cash.");
+      const res = await applyBalanceChange({
+        guildId,
+        userId: target.id,
+        amount: -amt,
+        type: "remove",
+        reason: "Manual remove",
+        actorId: callerId
+      });
 
-  const row = await getUserRow(guildId, target.id);
-  const newBal = Number(row?.balance ?? 0);
+      if (!res.ok) return interaction.editReply("❌ Could not remove cash.");
 
-  return interaction.editReply(
-    `🗑️ Removed **${fmtNum(amt)}** ${cfg.currency_name} from <@${target.id}>.\n` +
-    `New balance: **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
-  );
-}
+      const row = await getUserRow(guildId, target.id);
+      const newBal = Number(row?.balance ?? 0);
+
+      return interaction.editReply(
+        `🗑️ Removed **${fmtNum(amt)}** ${cfg.currency_name} from <@${target.id}>.\n` +
+        `New balance: **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
+      );
+    }
 
     // CONFIG (admin)
     if (interaction.commandName === "config") {
@@ -1661,7 +1751,6 @@ if (interaction.commandName === "remove") {
   } catch (e) {
     console.error("Interaction error:", e?.message || e);
 
-    // If we already acknowledged the interaction, edit; otherwise reply
     try {
       if (interaction.deferred || interaction.replied) {
         return interaction.editReply({
@@ -1674,56 +1763,12 @@ if (interaction.commandName === "remove") {
         ephemeral: true
       });
     } catch (e) {
-      // swallow secondary failures
       return;
     }
   }
-  
+
 }); // ✅ end interactionCreate (ONLY ONE)
 
-// ===== AUTO-DELETE SPECIFIC INVITE =====
-const BLOCKED_INVITE = "discord.gg/2EusmmaqvY";
-
-client.on("messageCreate", async (message) => {
-  try {
-    if (!message.guild) return;
-    if (message.author.bot === false) return; // optional — remove if you want it to delete from users too
-
-    const needle = BLOCKED_INVITE.toLowerCase();
-
-    const contentHit =
-      (message.content || "").toLowerCase().includes(needle);
-
-    const embedHit =
-      (message.embeds || []).some(embed => {
-        const combined = `
-          ${embed.title || ""}
-          ${embed.description || ""}
-          ${embed.url || ""}
-          ${(embed.fields || []).map(f => f.name + " " + f.value).join(" ")}
-          ${embed.footer?.text || ""}
-          ${embed.author?.name || ""}
-        `.toLowerCase();
-
-        return combined.includes(needle);
-      });
-
-    const componentHit =
-      (message.components || []).some(row =>
-        row.components?.some(comp =>
-          (comp.url || "").toLowerCase().includes(needle)
-        )
-      );
-
-    if (contentHit || embedHit || componentHit) {
-      await message.delete().catch(() => {});
-      console.log("Deleted blocked invite link.");
-    }
-
-  } catch (err) {
-    console.error("Auto-delete error:", err);
-  }
-});
 // ----------------------------------------------------
 // 2) Replay buttons (no key needed)
 // ----------------------------------------------------
