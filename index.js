@@ -1425,6 +1425,40 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     return interaction.followUp({ content: "⚠️ Something went wrong. Try again.", ephemeral: true });
   }
 }
+// SLOTS (interactive)
+if (interaction.commandName === "slots") {
+  await upsertUserRow(guildId, callerId);
+
+  const key = slotsKey(guildId, interaction.channelId, callerId);
+
+  const existing = SLOT_GAMES.get(key);
+  if (existing && !slotsExpired(existing)) {
+    const cfg = await getConfig(guildId);
+    const embed = slotsEmbed(cfg, existing, { status: "You already have an active slots game here." });
+    return interaction.editReply({ embeds: [embed], components: slotsLineButtons(existing) });
+  }
+  SLOT_GAMES.delete(key);
+
+  const state = {
+    key,
+    createdAt: Date.now(),
+    guildId,
+    channelId: interaction.channelId,
+    userId: callerId,
+    linesCount: null,
+    lastBetTotal: 0
+  };
+
+  SLOT_GAMES.set(key, state);
+
+  const cfg = await getConfig(guildId);
+  const embed = slotsEmbed(cfg, state, { status: "Select how many lines to bet." });
+
+  return interaction.editReply({
+    embeds: [embed],
+    components: slotsLineButtons(state)
+  });
+}
     // =========================
     // 4) SLASH COMMANDS
     // =========================
