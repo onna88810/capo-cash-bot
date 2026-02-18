@@ -14,7 +14,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "discord.js": "^14.16.3",
     "luxon": "^3.5.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
     "@resvg/resvg-js": "^2.6.2"
   }
 }
