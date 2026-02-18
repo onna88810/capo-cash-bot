@@ -746,9 +746,9 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
   <svg width="${width}" height="${height}"
     xmlns="http://www.w3.org/2000/svg"
     xmlns:xlink="http://www.w3.org/1999/xlink">
-    <rect width="100%" height="100%" fill="#0d0d0d"/>
+    <rect width="100%" height="100%" fill="#050505"/>
     <rect x="${padding}" y="${padding}" width="${boardSize}" height="${boardSize}" rx="25"
-      fill="#1a1a1a" stroke="#00ff99" stroke-width="6"/>
+      fill="#1a1a1a" stroke="#00b36b" stroke-width="6"/>
   `;
 
   // Draw cells + emoji images
@@ -759,7 +759,7 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
 
       svg += `
         <rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="20"
-          fill="#111" stroke="#333" stroke-width="3"/>
+          fill="#0a0a0a" stroke="#1f1f1f" stroke-width="3"/>
       `;
 
       const emoji = grid[row][col];
