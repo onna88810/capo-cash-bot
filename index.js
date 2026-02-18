@@ -1231,26 +1231,31 @@ SLOT_GAMES.set(key, state);
 
     // ===== RUMBLE (admin) =====
     if (interaction.commandName === "rumble") {
-      const sub = interaction.options.getSubcommand();
+  const group = interaction.options.getSubcommandGroup();
+  const sub = interaction.options.getSubcommand();
 
-      if (sub === "payoutamount") {
-        const amount = interaction.options.getInteger("amount", true);
+  if (group === "payout" && sub === "amount") {
+    const amount = interaction.options.getInteger("amount", true);
+    const channelId = interaction.channelId;
 
-        const { error } = await supabase
-          .from("config")
-          .update({ rumble_win_amount: amount })
-          .eq("guild_id", guildId);
+    const { error } = await supabase
+      .from("rumble_channel_config")
+      .upsert({
+        guild_id: guildId,
+        channel_id: channelId,
+        payout_amount: amount
+      });
 
-        if (error) {
-          console.error("Rumble payout update error:", error);
-          return interaction.editReply("❌ Failed to update payout amount.");
-        }
-
-        return interaction.editReply(
-          `✅ Rumble payout amount set to **${amount} Capo Cash** server-wide.`
-        );
-      }
+    if (error) {
+      console.error("Rumble channel payout error:", error);
+      return interaction.editReply("❌ Failed to update payout.");
     }
+
+    return interaction.editReply(
+      `✅ Rumble payout set to **${amount} Capo Cash** for this channel.`
+    );
+  }
+}
 
     // BLACKJACK (slash command)
     if (interaction.commandName === "blackjack") {
