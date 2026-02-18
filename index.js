@@ -1355,10 +1355,10 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
       }
     }
 
-    return interaction.editReply(
+return interaction.editReply(
   isLock
-    ? `🔒 Locked <#${LOCK_CHANNEL_ID}>.`
-    : `🔓 Unlocked <#${LOCK_CHANNEL_ID}>.`
+    ? `🔒 The arena is now locked.`
+    : `🔓 The arena is now open.`
 );
   } catch (e) {
     console.error("Lock/unlock error:", e?.message || e);
