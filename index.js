@@ -977,28 +977,6 @@ client.on("interactionCreate", async (interaction) => {
         components: slotsLineButtons(state)
       });
     }
-
-    // (All your other slash commands remain exactly as you had them below this.)
-
-  } catch (e) {
-    console.error("Interaction error:", e?.message || e);
-
-    try {
-      if (interaction.deferred || interaction.replied) {
-        return interaction.editReply({
-          content: "⚠️ Something went wrong. Try again.",
-          ephemeral: true
-        });
-      }
-      return interaction.reply({
-        content: "⚠️ Something went wrong. Try again.",
-        ephemeral: true
-      });
-    } catch {
-      return;
-    }
-  }
-});
     // ===== RUMBLE (admin) =====
     if (interaction.commandName === "rumble") {
       const sub = interaction.options.getSubcommand();
