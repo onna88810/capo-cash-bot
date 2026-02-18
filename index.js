@@ -1425,6 +1425,21 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     return interaction.followUp({ content: "⚠️ Something went wrong. Try again.", ephemeral: true });
   }
 }
+
+    // =========================
+    // 4) SLASH COMMANDS
+    // =========================
+    if (!interaction.isChatInputCommand()) return;
+    if (!interaction.guild) return;
+
+    await interaction.deferReply();
+    
+    const guildId = interaction.guild.id;
+    const callerId = interaction.user.id;
+
+    // IMPORTANT: cfg + tz MUST exist before any command uses them
+    const cfg = await getConfig(guildId);
+    const tz = cfg?.timezone || "America/Chicago";
 // SLOTS (interactive)
 if (interaction.commandName === "slots") {
   await upsertUserRow(guildId, callerId);
@@ -1459,21 +1474,6 @@ if (interaction.commandName === "slots") {
     components: slotsLineButtons(state)
   });
 }
-    // =========================
-    // 4) SLASH COMMANDS
-    // =========================
-    if (!interaction.isChatInputCommand()) return;
-    if (!interaction.guild) return;
-
-    await interaction.deferReply();
-    
-    const guildId = interaction.guild.id;
-    const callerId = interaction.user.id;
-
-    // IMPORTANT: cfg + tz MUST exist before any command uses them
-    const cfg = await getConfig(guildId);
-    const tz = cfg?.timezone || "America/Chicago";
-
     // ===== RUMBLE (admin) =====
     if (interaction.commandName === "rumble") {
       const sub = interaction.options.getSubcommand();
