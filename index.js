@@ -883,8 +883,8 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         const grid = slotsBuildGrid();
-        const { payout } = slotsEval(grid, linesCount);
-
+        const { payout, wins } = slotsEval(grid, linesCount);
+        
         if (payout > 0) {
           await applyBalanceChange({
             guildId: state.guildId,
@@ -903,12 +903,14 @@ client.on("interactionCreate", async (interaction) => {
         SLOT_GAMES.set(key, state);
 
         const embed = slotsEmbed(cfg, state, {
-          status:
-            payout > 0
-              ? `✅ You won **${fmt(payout)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`
-              : `❌ You lost **${fmt(totalBet)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`,
-          grid
-        });
+  status:
+    payout > 0
+      ? `✅ You won **${fmt(payout)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`
+      : `❌ You lost **${fmt(totalBet)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`,
+  grid,
+  wins,
+  payout
+});
 
         return interaction.editReply({
           embeds: [embed],
