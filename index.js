@@ -1052,7 +1052,6 @@ if (action === "new_game") {
 
     const guildId = interaction.guild.id;
     const callerId = interaction.user.id;
-    const cfg = await getConfig(guildId);
     const tz = cfg?.timezone || "America/Chicago";
 
     // ---------- /slots ----------
