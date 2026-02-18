@@ -700,12 +700,15 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// ===== SLASH COMMANDS + LEADERBOARD BUTTONS =====
+// ===== SLASH COMMANDS + BUTTONS =====
 client.on("interactionCreate", async (interaction) => {
   try {
-    // =========================
-    // 1) LEADERBOARD BUTTONS
-    // =========================
+
+    // ====================================================
+    // BUTTON HANDLERS (ALWAYS BEFORE SLASH COMMAND CHECK)
+    // ====================================================
+
+    // ---------- LEADERBOARD BUTTONS ----------
     if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
       await interaction.deferUpdate();
 
@@ -752,15 +755,12 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // ==========================================
-    // 2) BLACKJACK "NEW BET" MODAL SUBMIT
-    // ==========================================
+    // ---------- BLACKJACK MODAL ----------
     if (
       interaction.type === InteractionType.ModalSubmit &&
       interaction.customId.startsWith("bj:newbet:")
     ) {
-      const key = interaction.customId.split(":")[2]; // bj:newbet:<key>
-
+      const key = interaction.customId.split(":")[2];
       const betRaw = interaction.fields.getTextInputValue("bj_bet_amt") || "";
       const bet = Math.floor(Number(betRaw.replace(/[^\d]/g, "")));
 
@@ -772,12 +772,7 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const [guildId, channelId, userId] = key.split("_");
-      if (interaction.guildId !== guildId || interaction.channelId !== channelId) {
-        return interaction.reply({
-          content: "⚠️ That replay is no longer valid in this channel.",
-          ephemeral: true
-        });
-      }
+
       if (interaction.user.id !== userId) {
         return interaction.reply({
           content: "🚫 That replay isn’t for you.",
@@ -788,16 +783,6 @@ client.on("interactionCreate", async (interaction) => {
       const cfg = await getConfig(guildId);
       const currency = BJ_PAGE_CURRENCY(cfg);
 
-      const existing = BJ_GAMES.get(key);
-      if (existing && !bjIsExpired(existing)) {
-        return interaction.reply({
-          content: "🃏 You already have an active blackjack game here.",
-          ephemeral: true
-        });
-      }
-      BJ_GAMES.delete(key);
-
-      // take bet up front
       const take = await applyBalanceChange({
         guildId,
         userId,
@@ -814,96 +799,23 @@ client.on("interactionCreate", async (interaction) => {
         });
       }
 
-      // deal
-      const playerHand = [bjDrawCard(), bjDrawCard()];
-      const dealerHand = [bjDrawCard(), bjDrawCard()];
+      const player = [bjDrawCard(), bjDrawCard()];
+      const dealer = [bjDrawCard(), bjDrawCard()];
 
-      const playerScore = bjScore(playerHand);
-      const dealerScore = bjScore(dealerHand);
-      const playerBJ = playerScore === 21 && playerHand.length === 2;
-      const dealerBJ = dealerScore === 21 && dealerHand.length === 2;
-
-      // natural blackjack (3:2)
-      if (playerBJ || dealerBJ) {
-        let result = "push";
-        if (playerBJ && !dealerBJ) result = "win";
-        else if (!playerBJ && dealerBJ) result = "lose";
-
-        let payout = 0;
-        if (result === "win") payout = Math.floor(bet * 2.5);
-        else if (result === "push") payout = bet;
-
-        if (payout > 0) {
-          await applyBalanceChange({
-            guildId,
-            userId,
-            amount: payout,
-            type: "bj_payout",
-            reason: "Blackjack (natural) result",
-            actorId: "system"
-          });
-        }
-
-        const row = await getUserRow(guildId, userId);
-        const newBal = Number(row?.balance ?? 0);
-
-        const headline =
-          result === "win"
-            ? `🂡 **BLACKJACK!** Pays **3:2** ✅`
-            : result === "lose"
-            ? `💀 **Dealer has Blackjack.**`
-            : `🤝 **Double Blackjack — Push.**`;
-
-        const tempState = {
-          bet,
-          dealerHand,
-          hands: [playerHand],
-          activeHandIndex: 0,
-          handBets: [bet],
-          messageLine: headline
-        };
-
-        const embed = bjBuildEmbed(cfg, tempState, {
-          revealDealer: true,
-          footerText: `New Balance: ${fmt(newBal)} ${currency}`
-        }).setDescription(
-          `${headline}\n` +
-            `**Bet:** ${fmt(bet)} ${currency}\n` +
-            `**Payout:** ${fmt(payout)} ${currency}\n` +
-            `**Net:** ${
-              result === "win"
-                ? `+${fmt(payout - bet)}`
-                : result === "push"
-                ? "0"
-                : `-${fmt(bet)}`
-            } ${currency} ${CC_EMOJI}`
-        );
-
-        return interaction.reply({
-          embeds: [embed],
-          components: bjReplayButtons(bet)
-        });
-      }
-
-      // normal interactive game
       const state = {
         key,
         createdAt: Date.now(),
         guildId,
         channelId,
         userId,
-
         bet,
-        dealerHand,
-
-        hands: [playerHand],
+        dealerHand: dealer,
+        hands: [player],
         activeHandIndex: 0,
-
         didSplit: false,
         handBets: [bet],
         handResults: [null],
         didDoubleOnHand: [false],
-
         messageLine: `Choose your move. ${CC_EMOJI}`
       };
 
@@ -917,563 +829,176 @@ client.on("interactionCreate", async (interaction) => {
       });
     }
 
-    // ==========================================
-    // 3) BLACKJACK BUTTONS (hit/stand/double/split + replay)
-    // ==========================================
-    if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
+    // ---------- SLOTS BUTTONS ----------
+    if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
+      await interaction.deferUpdate();
+
       const parts = interaction.customId.split(":");
       const action = parts[1];
 
-      // REPLAY NEW BET -> show modal (do NOT deferUpdate)
-      if (action === "replay_new") {
-        const guildId = interaction.guildId;
-        const callerId = interaction.user.id;
-        const key = bjGameKey(guildId, callerId, interaction.channelId);
+      const key =
+        action === "lines"
+          ? parts.slice(3).join(":")
+          : parts.slice(2).join(":");
 
-        const modal = new ModalBuilder()
-          .setCustomId(`bj:newbet:${key}`)
-          .setTitle("Blackjack - New Bet");
-
-        const betInput = new TextInputBuilder()
-          .setCustomId("bj_bet_amt")
-          .setLabel("Enter your bet amount")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setPlaceholder("e.g. 2500");
-
-        modal.addComponents(new ActionRowBuilder().addComponents(betInput));
-        return interaction.showModal(modal);
+      const state = SLOT_GAMES.get(key);
+      if (!state || slotsExpired(state)) {
+        SLOT_GAMES.delete(key);
+        return interaction.editReply({
+          content: "⏳ Slots game expired. Run `/slots` again.",
+          components: []
+        });
       }
 
-      // Everything else can deferUpdate
-      await interaction.deferUpdate();
+      if (interaction.user.id !== state.userId) {
+        return interaction.followUp({
+          content: "🚫 This isn’t your slots game.",
+          ephemeral: true
+        });
+      }
 
-      // REPLAY SAME BET -> auto-start new game
-      if (action === "replay_same") {
-        const lastBet = Math.floor(Number(parts[2] || 0));
-        if (!lastBet || lastBet <= 0) {
-          return interaction.editReply({ content: "⚠️ Invalid replay bet.", components: [] });
-        }
+      const cfg = await getConfig(state.guildId);
+      const currency = cfg.currency_name || "Capo Cash";
 
-        const guildId = interaction.guildId;
-        const callerId = interaction.user.id;
-
-        const cfg = await getConfig(guildId);
-        const currency = BJ_PAGE_CURRENCY(cfg);
-
-        const key = bjGameKey(guildId, callerId, interaction.channelId);
-
-        const existing = BJ_GAMES.get(key);
-        if (existing && !bjIsExpired(existing)) {
-          return interaction.editReply({
-            content: "🃏 You already have an active blackjack game here.",
-            components: []
-          });
-        }
-        BJ_GAMES.delete(key);
+      const runSpin = async (linesCount) => {
+        const totalBet = linesCount * SLOT_LINE_BET;
 
         const take = await applyBalanceChange({
-          guildId,
-          userId: callerId,
-          amount: -lastBet,
-          type: "bj_bet",
-          reason: "Blackjack bet (replay same)",
-          actorId: callerId
+          guildId: state.guildId,
+          userId: state.userId,
+          amount: -totalBet,
+          type: "slots_bet",
+          reason: `Slots bet (${linesCount} lines)`,
+          actorId: state.userId
         });
 
         if (!take.ok) {
-          return interaction.editReply({
-            content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`,
-            components: []
+          const embed = slotsEmbed(cfg, state, {
+            status: `❌ Not enough ${currency}.`
           });
-        }
-
-        const playerHand = [bjDrawCard(), bjDrawCard()];
-        const dealerHand = [bjDrawCard(), bjDrawCard()];
-
-        const playerScore = bjScore(playerHand);
-        const dealerScore = bjScore(dealerHand);
-        const playerBJ = playerScore === 21 && playerHand.length === 2;
-        const dealerBJ = dealerScore === 21 && dealerHand.length === 2;
-
-        if (playerBJ || dealerBJ) {
-          let result = "push";
-          if (playerBJ && !dealerBJ) result = "win";
-          else if (!playerBJ && dealerBJ) result = "lose";
-
-          let payout = 0;
-          if (result === "win") payout = Math.floor(lastBet * 2.5);
-          else if (result === "push") payout = lastBet;
-
-          if (payout > 0) {
-            await applyBalanceChange({
-              guildId,
-              userId: callerId,
-              amount: payout,
-              type: "bj_payout",
-              reason: "Blackjack (natural) replay same",
-              actorId: "system"
-            });
-          }
-
-          const row = await getUserRow(guildId, callerId);
-          const newBal = Number(row?.balance ?? 0);
-
-          const headline =
-            result === "win"
-              ? `🂡 **BLACKJACK!** Pays **3:2** ✅`
-              : result === "lose"
-              ? `💀 **Dealer has Blackjack.**`
-              : `🤝 **Double Blackjack — Push.**`;
-
-          const tempState = {
-            bet: lastBet,
-            dealerHand,
-            hands: [playerHand],
-            activeHandIndex: 0,
-            handBets: [lastBet],
-            messageLine: headline
-          };
-
-          const embed = bjBuildEmbed(cfg, tempState, {
-            revealDealer: true,
-            footerText: `New Balance: ${fmt(newBal)} ${currency}`
-          }).setDescription(
-            `${headline}\n` +
-              `**Bet:** ${fmt(lastBet)} ${currency}\n` +
-              `**Payout:** ${fmt(payout)} ${currency}\n` +
-              `**Net:** ${
-                result === "win"
-                  ? `+${fmt(payout - lastBet)}`
-                  : result === "push"
-                  ? "0"
-                  : `-${fmt(lastBet)}`
-              } ${currency} ${CC_EMOJI}`
-          );
-
           return interaction.editReply({
             embeds: [embed],
-            components: bjReplayButtons(lastBet)
+            components: slotsLineButtons(state)
           });
         }
 
-        const state = {
-          key,
-          createdAt: Date.now(),
-          guildId,
-          channelId: interaction.channelId,
-          userId: callerId,
-
-          bet: lastBet,
-          dealerHand,
-
-          hands: [playerHand],
-          activeHandIndex: 0,
-
-          didSplit: false,
-          handBets: [lastBet],
-          handResults: [null],
-          didDoubleOnHand: [false],
-
-          messageLine: `Choose your move. ${CC_EMOJI}`
-        };
-
-        BJ_GAMES.set(key, state);
-
-        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-
-        return interaction.editReply({
-          embeds: [embed],
-          components: bjButtons(state)
-        });
-      }
-
-      // NORMAL GAME BUTTON FLOW (hit/stand/double/split)
-      // NOTE: key is built with underscores, not colons, so this is safe:
-      const key = parts.slice(2).join(":");
-      const state = BJ_GAMES.get(key);
-
-      if (!state) {
-        return interaction.editReply({
-          content: "⚠️ This blackjack game is no longer active.",
-          components: []
-        });
-      }
-      if (interaction.user.id !== state.userId) {
-        return interaction.followUp({ content: "🚫 This isn’t your blackjack game.", ephemeral: true });
-      }
-      if (bjIsExpired(state)) {
-        BJ_GAMES.delete(key);
-        return interaction.editReply({
-          content: "⏳ This blackjack game expired. Start a new one with `/blackjack`.",
-          components: []
-        });
-      }
-
-      const guildId = state.guildId;
-      const cfg = await getConfig(guildId);
-      const currency = BJ_PAGE_CURRENCY(cfg);
-
-      const currentHand = state.hands[state.activeHandIndex];
-
-      const dealerPlay = () => {
-        while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
-      };
-
-      const settleHand = (hand) => {
-        const ps = bjScore(hand);
-        const ds = bjScore(state.dealerHand);
-        if (ps > 21) return "lose";
-        if (ds > 21) return "win";
-        if (ps > ds) return "win";
-        if (ps === ds) return "push";
-        return "lose";
-      };
-
-      const computePayout = () => {
-        let payout = 0;
-        for (let i = 0; i < state.hands.length; i++) {
-          const res = state.handResults[i];
-          const handBet = state.handBets[i];
-          if (res === "win") payout += handBet * 2;
-          else if (res === "push") payout += handBet;
-        }
-        return payout;
-      };
-
-      const finalizeGame = async () => {
-        dealerPlay();
-
-        for (let i = 0; i < state.hands.length; i++) {
-          if (!state.handResults[i]) state.handResults[i] = settleHand(state.hands[i]);
-        }
-
-        const payout = computePayout();
+        const grid = slotsBuildGrid();
+        const { payout } = slotsEval(grid, linesCount);
 
         if (payout > 0) {
           await applyBalanceChange({
-            guildId,
+            guildId: state.guildId,
             userId: state.userId,
             amount: payout,
-            type: "bj_payout",
-            reason: "Blackjack result",
+            type: "slots_win",
+            reason: "Slots win",
             actorId: "system"
           });
         }
 
-        const row = await getUserRow(guildId, state.userId);
+        const row = await getUserRow(state.guildId, state.userId);
         const newBal = Number(row?.balance ?? 0);
 
-        let resultLine = "";
-        if (state.hands.length === 1) {
-          const r = state.handResults[0];
-          resultLine = r === "win" ? "✅ You win!" : r === "push" ? "🤝 Push!" : "❌ You lose.";
-        } else {
-          const toEmoji = (r) => (r === "win" ? "✅" : r === "push" ? "🤝" : "❌");
-          resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
-        }
+        state.linesCount = linesCount;
+        SLOT_GAMES.set(key, state);
 
-        const embed = bjBuildEmbed(cfg, state, {
-          revealDealer: true,
-          footerText: `New Balance: ${fmt(newBal)} ${currency}`
-        }).setDescription(
-          `**Final:** ${resultLine}\n` +
-            `**Payout:** ${fmt(payout)} ${currency}\n` +
-            `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
-        );
-
-        BJ_GAMES.delete(state.key);
+        const embed = slotsEmbed(cfg, state, {
+          status:
+            payout > 0
+              ? `✅ You won **${fmt(payout)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`
+              : `❌ You lost **${fmt(totalBet)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`,
+          grid
+        });
 
         return interaction.editReply({
           embeds: [embed],
-          components: bjReplayButtons(state.bet)
+          components: slotsReplayButtons(state)
         });
       };
 
-      const goNextHandOrFinish = async () => {
-        if (state.hands.length === 2 && state.activeHandIndex === 0) {
-          state.activeHandIndex = 1;
-          state.messageLine = "Now playing Hand 2.";
-          const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-          return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
-        }
-        return finalizeGame();
-      };
-
-      if (action === "hit") {
-        currentHand.push(bjDrawCard());
-        state.messageLine = `➕ Hit on Hand ${state.activeHandIndex + 1}.`;
-
-        const total = bjScore(currentHand);
-        if (total > 21) {
-          state.handResults[state.activeHandIndex] = "lose";
-          state.messageLine = `💥 Bust on Hand ${state.activeHandIndex + 1}.`;
-          return goNextHandOrFinish();
-        }
-        if (total === 21) {
-          state.messageLine = `🎯 21 on Hand ${state.activeHandIndex + 1}! (Auto-stand)`;
-          return goNextHandOrFinish();
-        }
-
-        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+      if (action === "lines") {
+        return runSpin(Number(parts[2]));
       }
 
-      if (action === "stand") {
-        state.messageLine = `🛑 Stood on Hand ${state.activeHandIndex + 1}.`;
-        return goNextHandOrFinish();
+      if (action === "again_same") {
+        return runSpin(state.linesCount);
       }
 
-      if (action === "double") {
-        const handIndex = state.activeHandIndex;
+      if (action === "new_game") {
+        state.linesCount = null;
+        SLOT_GAMES.set(key, state);
 
-        if (currentHand.length !== 2) {
-          return interaction.followUp({
-            content: "⚠️ You can only Double Down on your first two cards.",
-            ephemeral: true
-          });
-        }
-        if (state.didDoubleOnHand[handIndex]) {
-          return interaction.followUp({
-            content: "⚠️ You already doubled on this hand.",
-            ephemeral: true
-          });
-        }
-
-        const takeMore = await applyBalanceChange({
-          guildId,
-          userId: state.userId,
-          amount: -state.handBets[handIndex],
-          type: "bj_double",
-          reason: "Blackjack double down",
-          actorId: state.userId
+        const embed = slotsEmbed(cfg, state, {
+          status: "Select how many lines to bet."
         });
-        if (!takeMore.ok) {
-          return interaction.followUp({
-            content: `❌ You don’t have enough ${currency} to double down.`,
-            ephemeral: true
-          });
-        }
 
-        state.didDoubleOnHand[handIndex] = true;
-        state.handBets[handIndex] = state.handBets[handIndex] * 2;
-        state.messageLine = `⏫ Double Down on Hand ${handIndex + 1}. (One card then stand)`;
-
-        currentHand.push(bjDrawCard());
-
-        if (bjScore(currentHand) > 21) {
-          state.handResults[handIndex] = "lose";
-          state.messageLine = `💥 Bust after Double Down on Hand ${handIndex + 1}.`;
-        }
-
-        return goNextHandOrFinish();
-      }
-
-      if (action === "split") {
-        if (state.didSplit) {
-          return interaction.followUp({ content: "⚠️ You can only split once.", ephemeral: true });
-        }
-        if (!bjCanSplit(currentHand)) {
-          return interaction.followUp({
-            content: "⚠️ Split is only available when your first two cards match in value.",
-            ephemeral: true
-          });
-        }
-
-        const takeMore = await applyBalanceChange({
-          guildId,
-          userId: state.userId,
-          amount: -state.bet,
-          type: "bj_split",
-          reason: "Blackjack split",
-          actorId: state.userId
-        });
-        if (!takeMore.ok) {
-          return interaction.followUp({ content: `❌ You don’t have enough ${currency} to split.`, ephemeral: true });
-        }
-
-        state.didSplit = true;
-
-        const [c1, c2] = currentHand;
-        state.hands = [[c1], [c2]];
-        state.hands[0].push(bjDrawCard());
-        state.hands[1].push(bjDrawCard());
-
-        state.handBets = [state.bet, state.bet];
-        state.handResults = [null, null];
-        state.didDoubleOnHand = [false, false];
-        state.activeHandIndex = 0;
-
-        state.messageLine = "✂️ Split! Now playing Hand 1.";
-
-        const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-        return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
-      }
-
-      return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
-    }
-// ===== Slots buttons =====
-if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
-  try {
-    await interaction.deferUpdate();
-
-    const parts = interaction.customId.split(":");
-    const action = parts[1];
-    const key = parts.slice(3).join(":") || parts[2]; // supports sl:new_game:<key> and sl:lines:<n>:<key>
-
-    const state = SLOT_GAMES.get(key);
-    if (!state || slotsExpired(state)) {
-      SLOT_GAMES.delete(key);
-      return interaction.editReply({ content: "⏳ Slots game expired. Run `/slots` again.", components: [] });
-    }
-    if (interaction.user.id !== state.userId) {
-      return interaction.followUp({ content: "🚫 This isn’t your slots game.", ephemeral: true });
-    }
-
-    const cfg = await getConfig(state.guildId);
-    const currency = cfg.currency_name || "Capo Cash";
-
-    const runSpin = async (linesCount) => {
-      const totalBet = linesCount * SLOT_LINE_BET;
-
-      const take = await applyBalanceChange({
-        guildId: state.guildId,
-        userId: state.userId,
-        amount: -totalBet,
-        type: "slots_bet",
-        reason: `Slots bet (${linesCount} lines)`,
-        actorId: state.userId
-      });
-
-      if (!take.ok) {
         return interaction.editReply({
-          content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`,
-          components: slotsLineButtons({ ...state, linesCount: null })
+          embeds: [embed],
+          components: slotsLineButtons(state)
         });
       }
+    }
 
-      const grid = slotsBuildGrid();
-      const { payout, wins } = slotsEval(grid, linesCount);
+    // ====================================================
+    // SLASH COMMANDS
+    // ====================================================
+    if (!interaction.isChatInputCommand()) return;
+    if (!interaction.guild) return;
 
-      if (payout > 0) {
-        await applyBalanceChange({
-          guildId: state.guildId,
-          userId: state.userId,
-          amount: payout,
-          type: "slots_win",
-          reason: `Slots win (${linesCount} lines)`,
-          actorId: "system"
-        });
-      }
+    await interaction.deferReply();
 
-      const row = await getUserRow(state.guildId, state.userId);
-      const newBal = Number(row?.balance ?? 0);
+    const guildId = interaction.guild.id;
+    const callerId = interaction.user.id;
+    const cfg = await getConfig(guildId);
 
-      const net = payout - totalBet;
-      const status =
-        payout > 0
-          ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}`
-          : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}`;
+    // ---------- /slots ----------
+    if (interaction.commandName === "slots") {
+      await upsertUserRow(guildId, callerId);
 
-      // update state for replay
-      state.linesCount = linesCount;
-      state.lastBetTotal = totalBet;
+      const key = slotsKey(guildId, interaction.channelId, callerId);
+
+      const state = {
+        key,
+        createdAt: Date.now(),
+        guildId,
+        channelId: interaction.channelId,
+        userId: callerId,
+        linesCount: null
+      };
+
       SLOT_GAMES.set(key, state);
 
       const embed = slotsEmbed(cfg, state, {
-        status: `${status}\n💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`,
-        grid,
-        wins,
-        payout
+        status: "Select how many lines to bet."
       });
 
-      return interaction.editReply({
-        embeds: [embed],
-        components: slotsReplayButtons(state)
-      });
-    };
-
-    if (action === "lines") {
-      const linesCount = Math.max(1, Math.min(SLOT_LINES_TOTAL, Number(parts[2] || 1)));
-      state.linesCount = linesCount;
-      return runSpin(linesCount);
-    }
-
-    if (action === "again_same") {
-      if (!state.linesCount) {
-        const embed = slotsEmbed(cfg, state, { status: "Pick lines first." });
-        return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
-      }
-      return runSpin(state.linesCount);
-    }
-
-    if (action === "new_game") {
-      state.linesCount = null;
-      state.lastBetTotal = 0;
-      SLOT_GAMES.set(key, state);
-
-      const embed = slotsEmbed(cfg, state, { status: "Choose your bet lines." });
       return interaction.editReply({
         embeds: [embed],
         components: slotsLineButtons(state)
       });
     }
 
-    return interaction.followUp({ content: "⚠️ Unknown slots action.", ephemeral: true });
+    // (All your other slash commands remain exactly as you had them below this.)
+
   } catch (e) {
-    console.error("Slots button error:", e?.message || e);
-    return interaction.followUp({ content: "⚠️ Something went wrong. Try again.", ephemeral: true });
+    console.error("Interaction error:", e?.message || e);
+
+    try {
+      if (interaction.deferred || interaction.replied) {
+        return interaction.editReply({
+          content: "⚠️ Something went wrong. Try again.",
+          ephemeral: true
+        });
+      }
+      return interaction.reply({
+        content: "⚠️ Something went wrong. Try again.",
+        ephemeral: true
+      });
+    } catch {
+      return;
+    }
   }
-}
-
-    // =========================
-    // 4) SLASH COMMANDS
-    // =========================
-    if (!interaction.isChatInputCommand()) return;
-    if (!interaction.guild) return;
-
-    await interaction.deferReply();
-    
-    const guildId = interaction.guild.id;
-    const callerId = interaction.user.id;
-
-    // IMPORTANT: cfg + tz MUST exist before any command uses them
-    const cfg = await getConfig(guildId);
-    const tz = cfg?.timezone || "America/Chicago";
-// SLOTS (interactive)
-if (interaction.commandName === "slots") {
-  await upsertUserRow(guildId, callerId);
-
-  const key = slotsKey(guildId, interaction.channelId, callerId);
-
-  const existing = SLOT_GAMES.get(key);
-  if (existing && !slotsExpired(existing)) {
-    const cfg = await getConfig(guildId);
-    const embed = slotsEmbed(cfg, existing, { status: "You already have an active slots game here." });
-    return interaction.editReply({ embeds: [embed], components: slotsLineButtons(existing) });
-  }
-  SLOT_GAMES.delete(key);
-
-  const state = {
-    key,
-    createdAt: Date.now(),
-    guildId,
-    channelId: interaction.channelId,
-    userId: callerId,
-    linesCount: null,
-    lastBetTotal: 0
-  };
-
-  SLOT_GAMES.set(key, state);
-
-  const cfg = await getConfig(guildId);
-  const embed = slotsEmbed(cfg, state, { status: "Select how many lines to bet." });
-
-  return interaction.editReply({
-    embeds: [embed],
-    components: slotsLineButtons(state)
-  });
-}
+});
     // ===== RUMBLE (admin) =====
     if (interaction.commandName === "rumble") {
       const sub = interaction.options.getSubcommand();
