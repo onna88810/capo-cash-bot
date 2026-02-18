@@ -981,7 +981,6 @@ try {
 }
 
 // net / status text
-const totalBet = linesCount * SLOT_LINE_BET;
 const net = payout - totalBet;
 
 const status =
