@@ -952,63 +952,66 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         const grid = slotsBuildGrid();
-        const { payout, wins } = slotsEval(grid, linesCount);
-        
-        if (payout > 0) {
-          await applyBalanceChange({
-            guildId: state.guildId,
-            userId: state.userId,
-            amount: payout,
-            type: "slots_win",
-            reason: "Slots win",
-            actorId: "system"
-          });
-        }
+const { payout, wins } = slotsEval(grid, linesCount);
 
-        const row = await getUserRow(state.guildId, state.userId);
-        const newBal = Number(row?.balance ?? 0);
+// pay winnings
+if (payout > 0) {
+  await applyBalanceChange({
+    guildId: state.guildId,
+    userId: state.userId,
+    amount: payout,
+    type: "slots_win",
+    reason: `Slots win (${linesCount} lines)`,
+    actorId: "system"
+  });
+}
 
-        state.linesCount = linesCount;
-        SLOT_GAMES.set(key, state);
+const row = await getUserRow(state.guildId, state.userId);
+const newBal = Number(row?.balance ?? 0);
 
-        const embed = slotsEmbed(cfg, state, {
-  status:
-    payout > 0
-      ? `✅ You won **${fmt(payout)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`
-      : `❌ You lost **${fmt(totalBet)}** ${currency}\n💰 New Balance: **${fmt(newBal)}**`,
-  grid,
+// build winning line coordinate paths for the image generator
+const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
+
+// generate PNG buffer (safe fallback if image fails)
+let boardPng = null;
+try {
+  boardPng = buildSlotsBoardImage(grid, winningLinePaths);
+} catch (err) {
+  console.error("Slots board image render failed:", err?.message || err);
+}
+
+// net / status text
+const totalBet = linesCount * SLOT_LINE_BET;
+const net = payout - totalBet;
+
+const status =
+  payout > 0
+    ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
+      `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+    : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
+      `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
+
+// update state for replay
+state.linesCount = linesCount;
+state.lastBetTotal = totalBet;
+SLOT_GAMES.set(key, state);
+
+// build embed
+const embed = slotsEmbed(cfg, state, {
+  status,
+  grid: null, // IMPORTANT: don’t print emoji grid text anymore
   wins,
   payout
 });
 
-        return interaction.editReply({
-          embeds: [embed],
-          components: slotsReplayButtons(state)
-        });
-      };
+// attach image to embed if we successfully generated it
+if (boardPng) embed.setImage("attachment://slots.png");
 
-      if (action === "lines") {
-        return runSpin(Number(parts[2]));
-      }
-
-      if (action === "again_same") {
-        return runSpin(state.linesCount);
-      }
-
-      if (action === "new_game") {
-        state.linesCount = null;
-        SLOT_GAMES.set(key, state);
-
-        const embed = slotsEmbed(cfg, state, {
-          status: "Select how many lines to bet."
-        });
-
-        return interaction.editReply({
-          embeds: [embed],
-          components: slotsLineButtons(state)
-        });
-      }
-    }
+return interaction.editReply({
+  embeds: [embed],
+  files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+  components: slotsReplayButtons(state)
+});
 
     // ====================================================
     // SLASH COMMANDS
