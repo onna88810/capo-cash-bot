@@ -1311,6 +1311,39 @@ return interaction.editReply(
           `New balance **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
       );
     }
+    
+  // REMOVE (staff only)
+if (interaction.commandName === "remove") {
+
+  // Only allow staff (same permission level as give if you want)
+  if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+    return interaction.editReply("❌ You don’t have permission.");
+  }
+
+  const target = interaction.options.getUser("user", true);
+  const amt = Math.max(1, Math.abs(interaction.options.getInteger("amount", true)));
+
+  const res = await applyBalanceChange({
+    guildId,
+    userId: target.id,
+    amount: -amt, // 🔥 negative amount removes currency
+    type: "remove",
+    reason: "Manual removal",
+    actorId: callerId
+  });
+
+  if (!res.ok) {
+    return interaction.editReply("❌ Could not remove currency (insufficient funds?).");
+  }
+
+  const row = await getUserRow(guildId, target.id);
+  const newBal = Number(row?.balance ?? 0);
+
+  return interaction.editReply(
+    `💸 Removed **${fmtNum(amt)}** ${cfg.currency_name} from <@${target.id}>.\n` +
+    `New balance: **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
+  );
+}
 
     // CONFIG (admin)
     if (interaction.commandName === "config") {
