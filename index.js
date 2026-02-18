@@ -747,7 +747,17 @@ client.on("messageCreate", async (message) => {
       return;
     }
 
-    const amount = Number(cfg.rumble_win_amount || 75);
+    // Check channel-specific payout first
+const { data: channelCfg } = await supabase
+  .from("rumble_channel_config")
+  .select("payout_amount")
+  .eq("guild_id", guildId)
+  .eq("channel_id", message.channel.id)
+  .single();
+
+const amount =
+  channelCfg?.payout_amount ??
+  Number(cfg.rumble_win_amount || 75);
 
     const res = await applyBalanceChange({
       guildId,
