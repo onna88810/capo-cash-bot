@@ -33,6 +33,21 @@ new SlashCommandBuilder()
       o.setName("amount").setDescription("Amount to give").setRequired(true)
     ),
 
+// REMOVE
+new SlashCommandBuilder()
+  .setName("remove")
+  .setDescription("Remove Capo Cash from a user")
+  .addUserOption((o) =>
+    o.setName("user")
+      .setDescription("User to remove currency from")
+      .setRequired(true)
+  )
+  .addIntegerOption((o) =>
+    o.setName("amount")
+      .setDescription("Amount to remove")
+      .setRequired(true)
+  ),
+  
   // LEADERBOARD
   new SlashCommandBuilder()
     .setName("leaderboard")
