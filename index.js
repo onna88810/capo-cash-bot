@@ -1011,6 +1011,36 @@ return interaction.editReply({
   files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
   components: slotsReplayButtons(state)
 });
+}; // ✅ END runSpin
+
+// ✅ Route the button actions
+if (action === "lines") {
+  const linesCount = Number(parts[2]);
+  state.linesCount = linesCount;
+  SLOT_GAMES.set(key, state);
+  return runSpin(linesCount);
+}
+
+if (action === "again_same") {
+  const linesCount = Number(state.linesCount || 0);
+  if (!linesCount) {
+    const embed = slotsEmbed(cfg, state, { status: "Pick your lines first." });
+    return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
+  }
+  return runSpin(linesCount);
+}
+
+if (action === "new_game") {
+  state.linesCount = null;
+  SLOT_GAMES.set(key, state);
+
+  const embed = slotsEmbed(cfg, state, { status: "Select how many lines to bet." });
+  return interaction.editReply({
+    embeds: [embed],
+    components: slotsLineButtons(state),
+    files: []
+  });
+}
 
     // ====================================================
     // SLASH COMMANDS
