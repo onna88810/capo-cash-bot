@@ -1312,7 +1312,119 @@ client.on("interactionCreate", async (interaction) => {
 
       return interaction.followUp({ content: "⚠️ Unknown blackjack action.", ephemeral: true });
     }
+// ===== Slots buttons =====
+if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
+  try {
+    await interaction.deferUpdate();
 
+    const parts = interaction.customId.split(":");
+    const action = parts[1];
+    const key = parts.slice(3).join(":") || parts[2]; // supports sl:new_game:<key> and sl:lines:<n>:<key>
+
+    const state = SLOT_GAMES.get(key);
+    if (!state || slotsExpired(state)) {
+      SLOT_GAMES.delete(key);
+      return interaction.editReply({ content: "⏳ Slots game expired. Run `/slots` again.", components: [] });
+    }
+    if (interaction.user.id !== state.userId) {
+      return interaction.followUp({ content: "🚫 This isn’t your slots game.", ephemeral: true });
+    }
+
+    const cfg = await getConfig(state.guildId);
+    const currency = cfg.currency_name || "Capo Cash";
+
+    const runSpin = async (linesCount) => {
+      const totalBet = linesCount * SLOT_LINE_BET;
+
+      const take = await applyBalanceChange({
+        guildId: state.guildId,
+        userId: state.userId,
+        amount: -totalBet,
+        type: "slots_bet",
+        reason: `Slots bet (${linesCount} lines)`,
+        actorId: state.userId
+      });
+
+      if (!take.ok) {
+        return interaction.editReply({
+          content: `❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`,
+          components: slotsLineButtons({ ...state, linesCount: null })
+        });
+      }
+
+      const grid = slotsBuildGrid();
+      const { payout, wins } = slotsEval(grid, linesCount);
+
+      if (payout > 0) {
+        await applyBalanceChange({
+          guildId: state.guildId,
+          userId: state.userId,
+          amount: payout,
+          type: "slots_win",
+          reason: `Slots win (${linesCount} lines)`,
+          actorId: "system"
+        });
+      }
+
+      const row = await getUserRow(state.guildId, state.userId);
+      const newBal = Number(row?.balance ?? 0);
+
+      const net = payout - totalBet;
+      const status =
+        payout > 0
+          ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}`
+          : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}`;
+
+      // update state for replay
+      state.linesCount = linesCount;
+      state.lastBetTotal = totalBet;
+      SLOT_GAMES.set(key, state);
+
+      const embed = slotsEmbed(cfg, state, {
+        status: `${status}\n💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`,
+        grid,
+        wins,
+        payout
+      });
+
+      return interaction.editReply({
+        embeds: [embed],
+        components: slotsReplayButtons(state)
+      });
+    };
+
+    if (action === "lines") {
+      const linesCount = Math.max(1, Math.min(SLOT_LINES_TOTAL, Number(parts[2] || 1)));
+      state.linesCount = linesCount;
+      return runSpin(linesCount);
+    }
+
+    if (action === "again_same") {
+      if (!state.linesCount) {
+        const embed = slotsEmbed(cfg, state, { status: "Pick lines first." });
+        return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
+      }
+      return runSpin(state.linesCount);
+    }
+
+    if (action === "new_game") {
+      state.linesCount = null;
+      state.lastBetTotal = 0;
+      SLOT_GAMES.set(key, state);
+
+      const embed = slotsEmbed(cfg, state, { status: "Choose your bet lines." });
+      return interaction.editReply({
+        embeds: [embed],
+        components: slotsLineButtons(state)
+      });
+    }
+
+    return interaction.followUp({ content: "⚠️ Unknown slots action.", ephemeral: true });
+  } catch (e) {
+    console.error("Slots button error:", e?.message || e);
+    return interaction.followUp({ content: "⚠️ Something went wrong. Try again.", ephemeral: true });
+  }
+}
     // =========================
     // 4) SLASH COMMANDS
     // =========================
