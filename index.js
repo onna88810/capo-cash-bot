@@ -1356,10 +1356,10 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     }
 
     return interaction.editReply(
-      isLock
-        ? `🔒 Locked <#${LOCK_CHANNEL_ID}> (team roles muted).`
-        : `🔓 Unlocked <#${LOCK_CHANNEL_ID}> (team roles restored).`
-    );
+  isLock
+    ? `🔒 Locked <#${LOCK_CHANNEL_ID}>.`
+    : `🔓 Unlocked <#${LOCK_CHANNEL_ID}>.`
+);
   } catch (e) {
     console.error("Lock/unlock error:", e?.message || e);
     return interaction.editReply("⚠️ Failed to update channel permissions.");
