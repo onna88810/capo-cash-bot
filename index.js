@@ -35,6 +35,7 @@ import {
   markRumblePaid
 } from "./db.js";
 import cron from "node-cron";
+import { Resvg } from "@resvg/resvg-js";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const DISCORD_APP_ID = process.env.DISCORD_APP_ID;
