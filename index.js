@@ -47,6 +47,154 @@ const fmtNum = (n) => Number(n ?? 0).toLocaleString("en-US");
 if (!DISCORD_TOKEN || !DISCORD_APP_ID) {
   throw new Error("Missing DISCORD_TOKEN or DISCORD_APP_ID env vars.");
 }
+// ===== Slots (interactive) =====
+const SLOT_GAMES = new Map();
+const SLOT_TTL_MS = 5 * 60 * 1000;
+const SLOT_LINES_TOTAL = 8;
+const SLOT_LINE_BET = 5; // 5 CC per line
+
+// 3x3 grid indices: [row][col] where row 0=top, 1=mid, 2=bot; col 0..2
+const SLOT_PAYLINES = [
+  // 1) Top row
+  [[0,0],[0,1],[0,2]],
+  // 2) Middle row
+  [[1,0],[1,1],[1,2]],
+  // 3) Bottom row
+  [[2,0],[2,1],[2,2]],
+  // 4) Diagonal TL -> BR
+  [[0,0],[1,1],[2,2]],
+  // 5) Diagonal BL -> TR
+  [[2,0],[1,1],[0,2]],
+  // 6) "V" (top corners, bottom middle)
+  [[0,0],[2,1],[0,2]],
+  // 7) Inverted "V" (bottom corners, top middle)
+  [[2,0],[0,1],[2,2]],
+  // 8) "Arch" (top corners, center middle)
+  [[0,0],[1,1],[0,2]],
+];
+
+// Weighted symbols + paytable multipliers (per winning line)
+const SLOT_SYMBOLS = [
+  { sym: "🍒", w: 40, mult: 5 },
+  { sym: "🍋", w: 30, mult: 6 },
+  { sym: "🔔", w: 18, mult: 8 },
+  { sym: "💎", w: 9,  mult: 15 },
+  { sym: "7️⃣", w: 3,  mult: 50 },
+];
+
+function slotsKey(guildId, channelId, userId) {
+  return `slots_${guildId}_${channelId}_${userId}`;
+}
+function slotsExpired(state) {
+  return Date.now() - state.createdAt > SLOT_TTL_MS;
+}
+function slotsPickSymbol() {
+  const total = SLOT_SYMBOLS.reduce((s, x) => s + x.w, 0);
+  let r = Math.random() * total;
+  for (const x of SLOT_SYMBOLS) {
+    r -= x.w;
+    if (r <= 0) return x.sym;
+  }
+  return SLOT_SYMBOLS[0].sym;
+}
+function slotsBuildGrid() {
+  return [
+    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
+    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
+    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
+  ];
+}
+function slotsFmtGrid(grid) {
+  const row = (r) => `${grid[r][0]} ${grid[r][1]} ${grid[r][2]}`;
+  return `\n${row(0)}\n${row(1)}\n${row(2)}\n`;
+}
+function slotsMultForSymbol(sym) {
+  return SLOT_SYMBOLS.find(x => x.sym === sym)?.mult ?? 0;
+}
+function slotsEval(grid, linesCount) {
+  let payout = 0;
+  const wins = [];
+
+  for (let i = 0; i < linesCount; i++) {
+    const line = SLOT_PAYLINES[i];
+    const a = grid[line[0][0]][line[0][1]];
+    const b = grid[line[1][0]][line[1][1]];
+    const c = grid[line[2][0]][line[2][1]];
+
+    if (a === b && b === c) {
+      const mult = slotsMultForSymbol(a);
+      const win = SLOT_LINE_BET * mult;
+      payout += win;
+      wins.push({ line: i + 1, sym: a, win });
+    }
+  }
+
+  return { payout, wins };
+}
+
+function slotsLineButtons(state) {
+  const key = state.key;
+
+  // 1..7 lines + MAX BET (8)
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sl:lines:1:${key}`).setLabel("1 Line").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:2:${key}`).setLabel("2 Lines").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:3:${key}`).setLabel("3 Lines").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:4:${key}`).setLabel("4 Lines").setStyle(ButtonStyle.Secondary),
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`sl:lines:5:${key}`).setLabel("5 Lines").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:6:${key}`).setLabel("6 Lines").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:7:${key}`).setLabel("7 Lines").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`sl:lines:8:${key}`).setLabel("MAX BET").setStyle(ButtonStyle.Success),
+  );
+
+  return [row1, row2];
+}
+
+function slotsReplayButtons(state) {
+  // same bet = spin again using state.linesCount
+  const key = state.key;
+  const lines = state.linesCount ?? 0;
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`sl:again_same:${key}`)
+        .setLabel("Play again (same bet)")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(lines <= 0),
+      new ButtonBuilder()
+        .setCustomId(`sl:new_game:${key}`)
+        .setLabel("New game")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function slotsEmbed(cfg, state, { title = "🎰 Capo Cash Slots", status = "", grid = null, wins = [], payout = 0 } = {}) {
+  const currency = cfg?.currency_name || "Capo Cash";
+  const lines = state.linesCount ?? 0;
+  const totalBet = lines > 0 ? lines * SLOT_LINE_BET : 0;
+
+  const winLinesText =
+    wins.length === 0
+      ? "None"
+      : wins.map(w => `Line ${w.line}: ${w.sym} **+${fmt(w.win)}**`).join("\n");
+
+  const desc =
+    (lines > 0
+      ? `**Lines:** ${lines}/${SLOT_LINES_TOTAL}\n**Bet:** ${fmt(totalBet)} ${currency} (${SLOT_LINE_BET}/line)\n`
+      : `Pick how many lines to bet (each line is **${SLOT_LINE_BET}** ${currency}).\n`) +
+    (status ? `\n**Status:** ${status}\n` : "") +
+    (grid ? `\n\`\`\`\n${slotsFmtGrid(grid)}\`\`\`\n` : "") +
+    (lines > 0 ? `**Winning Lines:**\n${winLinesText}\n\n**Payout:** ${fmt(payout)} ${currency}\n` : "");
+
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(desc)
+    .setTimestamp(new Date());
+}
 // ===== Blackjack: in-memory active games (per user per channel) =====
 const BJ_GAMES = new Map(); // key => state
 const BJ_TTL_MS = 5 * 60 * 1000; // 5 minutes
