@@ -1766,6 +1766,49 @@ return interaction.editReply(
   
 }); // ✅ end interactionCreate (ONLY ONE)
 
+// ===== AUTO-DELETE SPECIFIC INVITE =====
+const BLOCKED_INVITE = "discord.gg/2EusmmaqvY";
+
+client.on("messageCreate", async (message) => {
+  try {
+    if (!message.guild) return;
+    if (message.author.bot === false) return; // optional — remove if you want it to delete from users too
+
+    const needle = BLOCKED_INVITE.toLowerCase();
+
+    const contentHit =
+      (message.content || "").toLowerCase().includes(needle);
+
+    const embedHit =
+      (message.embeds || []).some(embed => {
+        const combined = `
+          ${embed.title || ""}
+          ${embed.description || ""}
+          ${embed.url || ""}
+          ${(embed.fields || []).map(f => f.name + " " + f.value).join(" ")}
+          ${embed.footer?.text || ""}
+          ${embed.author?.name || ""}
+        `.toLowerCase();
+
+        return combined.includes(needle);
+      });
+
+    const componentHit =
+      (message.components || []).some(row =>
+        row.components?.some(comp =>
+          (comp.url || "").toLowerCase().includes(needle)
+        )
+      );
+
+    if (contentHit || embedHit || componentHit) {
+      await message.delete().catch(() => {});
+      console.log("Deleted blocked invite link.");
+    }
+
+  } catch (err) {
+    console.error("Auto-delete error:", err);
+  }
+});
 // ----------------------------------------------------
 // 2) Replay buttons (no key needed)
 // ----------------------------------------------------
