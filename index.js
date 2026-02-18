@@ -772,9 +772,9 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
         const iy = y + (cellSize - size) / 2;
 
         svg += `
-          <image x="${ix}" y="${iy}" width="${size}" height="${size}"
-            href="${dataUri}" xlink:href="${dataUri}" />
-        `;
+  <image x="${ix}" y="${iy}" width="${size}" height="${size}"
+    href="${dataUri}" />
+`;
       } else {
         // fallback (won't show for emoji, but avoids crashing if mapping missing)
         svg += `
