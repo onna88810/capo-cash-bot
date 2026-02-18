@@ -40,7 +40,7 @@ new SlashCommandBuilder()
           .setDescription("Amount to give")
           .setRequired(true)
       )
-  )
+  ),
 
 // REMOVE
 new SlashCommandBuilder()
