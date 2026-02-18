@@ -83,12 +83,9 @@ new SlashCommandBuilder()
     ),
 
   // SLOTS
-  new SlashCommandBuilder()
-    .setName("slots")
-    .setDescription("Spin the slots")
-    .addIntegerOption((o) =>
-      o.setName("bet").setDescription("Bet amount").setRequired(true)
-    ),
+new SlashCommandBuilder()
+  .setName("slots")
+  .setDescription("Spin the slots"),
 
   // BLACKJACK
   new SlashCommandBuilder()
