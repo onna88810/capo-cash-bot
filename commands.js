@@ -23,15 +23,24 @@ new SlashCommandBuilder()
     .setDescription("Claim your weekly Capo Cash"),
 
   // GIVE
-  new SlashCommandBuilder()
-    .setName("give")
-    .setDescription("Give Capo Cash to a user")
-    .addUserOption((o) =>
-      o.setName("user").setDescription("User to give cash to").setRequired(true)
-    )
-    .addIntegerOption((o) =>
-      o.setName("amount").setDescription("Amount to give").setRequired(true)
-    ),
+new SlashCommandBuilder()
+  .setName("give")
+  .setDescription("Give currency")
+  .addSubcommand(sub =>
+    sub
+      .setName("currency")
+      .setDescription("Give Capo Cash")
+      .addUserOption(o =>
+        o.setName("user")
+          .setDescription("User to give currency to")
+          .setRequired(true)
+      )
+      .addIntegerOption(o =>
+        o.setName("amount")
+          .setDescription("Amount to give")
+          .setRequired(true)
+      )
+  )
 
 // REMOVE
 new SlashCommandBuilder()
