@@ -1312,12 +1312,17 @@ return interaction.editReply(
       );
     }
     
-  // REMOVE (staff only)
+// REMOVE (staff only)
 if (interaction.commandName === "remove") {
+  const member = interaction.member;
 
-  // Only allow staff (same permission level as give if you want)
-  if (!interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-    return interaction.editReply("❌ You don’t have permission.");
+  const isStaff =
+    member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+    member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
+    member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+
+  if (!isStaff) {
+    return interaction.editReply("❌ Staff only.");
   }
 
   const target = interaction.options.getUser("user", true);
@@ -1326,21 +1331,19 @@ if (interaction.commandName === "remove") {
   const res = await applyBalanceChange({
     guildId,
     userId: target.id,
-    amount: -amt, // 🔥 negative amount removes currency
+    amount: -amt,
     type: "remove",
-    reason: "Manual removal",
+    reason: "Manual remove",
     actorId: callerId
   });
 
-  if (!res.ok) {
-    return interaction.editReply("❌ Could not remove currency (insufficient funds?).");
-  }
+  if (!res.ok) return interaction.editReply("❌ Could not remove cash.");
 
   const row = await getUserRow(guildId, target.id);
   const newBal = Number(row?.balance ?? 0);
 
   return interaction.editReply(
-    `💸 Removed **${fmtNum(amt)}** ${cfg.currency_name} from <@${target.id}>.\n` +
+    `🗑️ Removed **${fmtNum(amt)}** ${cfg.currency_name} from <@${target.id}>.\n` +
     `New balance: **${fmtNum(newBal)}** ${cfg.currency_name} ${CC_EMOJI}`
   );
 }
