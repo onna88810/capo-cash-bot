@@ -700,6 +700,74 @@ client.on("messageCreate", async (message) => {
     console.error("Rumble payout error:", e?.message || e);
   }
 });
+// ==============================
+// 🎰 SLOT BOARD IMAGE GENERATOR
+// ==============================
+
+function buildSlotsBoardImage(grid, winningLines = []) {
+  const cellSize = 150;
+  const padding = 40;
+  const boardSize = cellSize * 3;
+  const width = boardSize + padding * 2;
+  const height = boardSize + padding * 2;
+
+  // Map grid symbols to emoji text
+  const getEmoji = (symbol) => symbol;
+
+  // Build SVG grid
+  let svg = `
+  <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100%" height="100%" fill="#0d0d0d"/>
+    <rect x="${padding}" y="${padding}" width="${boardSize}" height="${boardSize}" rx="25" fill="#1a1a1a" stroke="#00ff99" stroke-width="6"/>
+  `;
+
+  // Draw cells
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const x = padding + col * cellSize;
+      const y = padding + row * cellSize;
+
+      svg += `
+        <rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="20" fill="#111" stroke="#333" stroke-width="3"/>
+        <text x="${x + cellSize / 2}" y="${y + cellSize / 2 + 15}"
+          font-size="70"
+          text-anchor="middle"
+          fill="white">
+          ${getEmoji(grid[row][col])}
+        </text>
+      `;
+    }
+  }
+
+  // Draw winning lines
+  winningLines.forEach((line) => {
+    const start = line[0];
+    const end = line[2];
+
+    const x1 = padding + start[1] * cellSize + cellSize / 2;
+    const y1 = padding + start[0] * cellSize + cellSize / 2;
+    const x2 = padding + end[1] * cellSize + cellSize / 2;
+    const y2 = padding + end[0] * cellSize + cellSize / 2;
+
+    svg += `
+      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+        stroke="#ff0033"
+        stroke-width="12"
+        stroke-linecap="round"
+        opacity="0.85"/>
+    `;
+  });
+
+  svg += `</svg>`;
+
+  // Convert SVG to PNG buffer
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: 600 }
+  });
+
+  const pngData = resvg.render();
+  return pngData.asPng();
+}
 
 // ===== SLASH COMMANDS + BUTTONS =====
 client.on("interactionCreate", async (interaction) => {
