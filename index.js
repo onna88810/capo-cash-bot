@@ -1430,6 +1430,157 @@ const settleAndPayout = async () => {
       });
     }
 
+// ---------- SLOTS LINES MODAL ----------
+if (
+  interaction.type === InteractionType.ModalSubmit &&
+  interaction.customId.startsWith("sl:linesmodal:")
+) {
+  const key = interaction.customId.split(":")[2]; // sl:linesmodal:<key>
+
+  const raw = interaction.fields.getTextInputValue("sl_lines") || "";
+  const lines = Math.floor(Number(raw.replace(/[^\d]/g, "")));
+
+  if (!lines || lines < 1 || lines > 7) {
+    return interaction.reply({
+      content: "⚠️ Enter a number of lines from **1 to 7**.",
+      ephemeral: true
+    });
+  }
+
+  // Pull state (or rebuild from key if missing)
+  let state = SLOT_GAMES.get(key);
+  if (!state) {
+    const partsKey = key.split("_"); // slots_${guildId}_${channelId}_${userId}
+    const guildId = partsKey[1];
+    const channelId = partsKey[2];
+    const userId = partsKey[3];
+
+    state = {
+      key,
+      createdAt: Date.now(),
+      guildId,
+      channelId,
+      userId,
+      linesCount: null,
+      tierId: null
+    };
+    SLOT_GAMES.set(key, state);
+  }
+
+  // Only the owner can submit
+  if (interaction.user.id !== state.userId) {
+    return interaction.reply({ content: "🚫 This isn’t your slots game.", ephemeral: true });
+  }
+
+  // Refresh TTL
+  state.createdAt = Date.now();
+  state.linesCount = lines;
+  state.tierId = "single";
+  SLOT_GAMES.set(key, state);
+
+  // We need to reuse your runSpin() logic — easiest is to trigger the same path
+  // by calling the same code inline here (copy/paste your runSpin function body)
+  // BUT since your runSpin is currently inside the sl: button handler scope,
+  // we’ll do this: call the same code by duplicating a small wrapper right here.
+
+  const cfg = await getConfig(state.guildId);
+  const currency = cfg.currency_name || "Capo Cash";
+
+  const tier = slotsResolveTier(lines, "single");
+  const betPerLine = tier.betPerLine;
+  const totalBet = lines * betPerLine;
+
+  const take = await applyBalanceChange({
+    guildId: state.guildId,
+    userId: state.userId,
+    amount: -totalBet,
+    type: "slots_bet",
+    reason: `Slots bet (${tier.label}, ${lines} lines)`,
+    actorId: state.userId
+  });
+
+  if (!take.ok) {
+    const embed = slotsEmbed(cfg, state, {
+      status: `❌ Not enough ${currency}.`,
+      tier,
+      totalBet
+    });
+    return interaction.reply({
+      embeds: [embed],
+      components: slotsLineButtons(state),
+      ephemeral: true
+    });
+  }
+
+  const grid = slotsBuildGrid();
+  const { wins } = slotsEval(grid, lines);
+
+  let payout = wins.length * tier.winPerLine;
+  let jackpotHit = false;
+
+  // (single tier can’t jackpot, so this won’t trigger, but keeping pattern consistent)
+  if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
+    if (Math.random() < tier.jackpot.chance) {
+      payout = tier.jackpot.amount;
+      jackpotHit = true;
+    }
+  }
+
+  if (payout > 0) {
+    await applyBalanceChange({
+      guildId: state.guildId,
+      userId: state.userId,
+      amount: payout,
+      type: jackpotHit ? "slots_jackpot" : "slots_win",
+      reason: jackpotHit ? `Slots JACKPOT (${tier.label})` : `Slots win (${tier.label})`,
+      actorId: "system"
+    });
+  }
+
+  const row = await getUserRow(state.guildId, state.userId);
+  const newBal = Number(row?.balance ?? 0);
+
+  const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
+
+  let boardPng = null;
+  try {
+    boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
+  } catch (err) {
+    console.error("Slots board image render failed:", err?.message || err);
+  }
+
+  const net = payout - totalBet;
+
+  const status =
+    payout > 0
+      ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
+        `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+      : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
+        `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
+
+  state.lastBetTotal = totalBet;
+  SLOT_GAMES.set(key, state);
+
+  const embed = slotsEmbed(cfg, state, {
+    status,
+    grid: null,
+    wins,
+    payout,
+    tier,
+    totalBet
+  });
+
+  if (boardPng) embed.setImage("attachment://slots.png");
+
+  // IMPORTANT: modal submits must use reply() or editReply() depending on your flow.
+  // Since modal submit hasn't deferred, reply is fine:
+  return interaction.reply({
+    embeds: [embed],
+    files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+    components: slotsReplayButtons(state)
+  });
+}
+
     // ---------- SLOTS BUTTONS ----------
     if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
       await interaction.deferUpdate();
