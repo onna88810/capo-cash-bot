@@ -1748,14 +1748,6 @@ SLOT_GAMES.set(key, state);
       }; // ✅ END runSpin
 
       // ✅ Route the button actions
-      if (action === "lines") {
-        const linesCount = Number(parts[2]);
-        state.linesCount = linesCount;
-        state.tierId = "single";
-        SLOT_GAMES.set(key, state);
-        return runSpin(linesCount, "single");
-      }
-
       if (action === "all10") {
         state.linesCount = 8;
         state.tierId = "all10";
