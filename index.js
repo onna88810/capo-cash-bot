@@ -205,25 +205,24 @@ function slotsResolveTier(linesCount, tierId) {
 function slotsLineButtons(state) {
   const key = state.key;
 
-  // 1..7 lines (single tier)
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`sl:lines:1:${key}`).setLabel("1 Line").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:2:${key}`).setLabel("2 Lines").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:3:${key}`).setLabel("3 Lines").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:4:${key}`).setLabel("4 Lines").setStyle(ButtonStyle.Secondary),
-  );
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`sl:lines:5:${key}`).setLabel("5 Lines").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:6:${key}`).setLabel("6 Lines").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`sl:lines:7:${key}`).setLabel("7 Lines").setStyle(ButtonStyle.Secondary),
-    // two 8-line tier buttons:
-    new ButtonBuilder().setCustomId(`sl:all10:${key}`).setLabel("All Lines").setStyle(ButtonStyle.Primary),
-  );
-  const row3 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`sl:max50:${key}`).setLabel("MAX BET").setStyle(ButtonStyle.Success),
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`sl:picklines:${key}`)
+      .setLabel("Lines")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId(`sl:all10:${key}`)
+      .setLabel("All Lines")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId(`sl:max50:${key}`)
+      .setLabel("MAX BET")
+      .setStyle(ButtonStyle.Success),
   );
 
-  return [row1, row2, row3];
+  return [row];
 }
 
 function slotsReplayButtons(state) {
