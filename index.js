@@ -1583,7 +1583,23 @@ if (
 
     // ---------- SLOTS BUTTONS ----------
     if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
-      await interaction.deferUpdate();
+     // If Lines button, show modal (DO NOT deferUpdate)
+if (action === "picklines") {
+  const modal = new ModalBuilder()
+    .setCustomId(`sl:linesmodal:${key}`)
+    .setTitle("Slots — Pick Lines");
+
+  const input = new TextInputBuilder()
+    .setCustomId("sl_lines")
+    .setLabel("How many lines? (1–7)")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("e.g. 3")
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return interaction.showModal(modal);
+}
+       await interaction.deferUpdate();
 
       const parts = interaction.customId.split(":");
       const action = parts[1];
