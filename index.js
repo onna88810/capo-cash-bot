@@ -993,30 +993,91 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
       return interaction.editReply(`❌ You don’t have enough ${currency} for that bet. ${CC_EMOJI}`);
     }
 
-    const player = [bjDrawCard(), bjDrawCard()];
-    const dealer = [bjDrawCard(), bjDrawCard()];
+   const player = [bjDrawCard(), bjDrawCard()];
+const dealer = [bjDrawCard(), bjDrawCard()];
 
-    const state = {
-      key,
-      createdAt: Date.now(),
+const playerScore = bjScore(player);
+const dealerScore = bjScore(dealer);
+const playerBJ = player.length === 2 && playerScore === 21;
+const dealerBJ = dealer.length === 2 && dealerScore === 21;
+
+// ✅ AUTO-FINISH natural blackjack (EXACT behavior like old code)
+if (playerBJ || dealerBJ) {
+  let result = "push";
+  if (playerBJ && !dealerBJ) result = "win";
+  else if (!playerBJ && dealerBJ) result = "lose";
+
+  let payout = 0;
+  if (result === "win") payout = Math.floor(lastBet * 2.5);
+  else if (result === "push") payout = lastBet;
+
+  if (payout > 0) {
+    await applyBalanceChange({
       guildId,
-      channelId,
       userId,
-      bet: lastBet,
-      dealerHand: dealer,
-      hands: [player],
-      activeHandIndex: 0,
-      didSplit: false,
-      handBets: [lastBet],
-      handResults: [null],
-      didDoubleOnHand: [false],
-      messageLine: `Choose your move. ${CC_EMOJI}`
-    };
+      amount: payout,
+      type: "bj_payout",
+      reason: "Blackjack (natural) replay same",
+      actorId: "system"
+    });
+  }
 
-    BJ_GAMES.set(key, state);
+  const row = await getUserRow(guildId, userId);
+  const newBal = Number(row?.balance ?? 0);
 
-    const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
-    return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+  const profit = result === "win" ? payout - lastBet : result === "push" ? 0 : -lastBet;
+
+  const headline =
+    result === "win"
+      ? `🂡 **BLACKJACK!** Pays **3:2** ✅ ${CC_EMOJI}`
+      : result === "lose"
+      ? `💀 **Dealer has Blackjack.** ${CC_EMOJI}`
+      : `🤝 **Double Blackjack — Push.** ${CC_EMOJI}`;
+
+  const tempState = {
+    bet: lastBet,
+    dealerHand: dealer,
+    hands: [player],
+    activeHandIndex: 0,
+    handBets: [lastBet],
+    messageLine: headline
+  };
+
+  const embed = bjBuildEmbed(cfg, tempState, {
+    revealDealer: true,
+    footerText: `New Balance: ${fmt(newBal)} ${currency}`
+  }).setDescription(
+    `${headline}\n` +
+      `**Bet:** ${fmt(lastBet)} ${currency}\n` +
+      `**Payout:** ${fmt(payout)} ${currency}\n` +
+      `**Net:** ${profit >= 0 ? "+" : ""}${fmt(profit)} ${currency} ${CC_EMOJI}`
+  );
+
+  return interaction.editReply({ embeds: [embed], components: bjReplayButtons(lastBet) });
+}
+
+// otherwise start normal interactive game
+const state = {
+  key,
+  createdAt: Date.now(),
+  guildId,
+  channelId,
+  userId,
+  bet: lastBet,
+  dealerHand: dealer,
+  hands: [player],
+  activeHandIndex: 0,
+  didSplit: false,
+  handBets: [lastBet],
+  handResults: [null],
+  didDoubleOnHand: [false],
+  messageLine: `Choose your move. ${CC_EMOJI}`
+};
+
+BJ_GAMES.set(key, state);
+
+const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
   }
 
   // =========================
@@ -1280,8 +1341,68 @@ const settleAndPayout = async () => {
         });
       }
 
-      const player = [bjDrawCard(), bjDrawCard()];
+            const player = [bjDrawCard(), bjDrawCard()];
       const dealer = [bjDrawCard(), bjDrawCard()];
+
+      // ✅ AUTO-FINISH natural blackjack (same as old behavior)
+      const playerScore = bjScore(player);
+      const dealerScore = bjScore(dealer);
+      const playerBJ = player.length === 2 && playerScore === 21;
+      const dealerBJ = dealer.length === 2 && dealerScore === 21;
+
+      if (playerBJ || dealerBJ) {
+        let result = "push";
+        if (playerBJ && !dealerBJ) result = "win";
+        else if (!playerBJ && dealerBJ) result = "lose";
+
+        let payout = 0;
+        if (result === "win") payout = Math.floor(bet * 2.5);
+        else if (result === "push") payout = bet;
+
+        if (payout > 0) {
+          await applyBalanceChange({
+            guildId,
+            userId,
+            amount: payout,
+            type: "bj_payout",
+            reason: "Blackjack (natural) replay new",
+            actorId: "system"
+          });
+        }
+
+        const row = await getUserRow(guildId, userId);
+        const newBal = Number(row?.balance ?? 0);
+
+        const profit = result === "win" ? payout - bet : result === "push" ? 0 : -bet;
+
+        const headline =
+          result === "win"
+            ? `🂡 **BLACKJACK!** Pays **3:2** ✅ ${CC_EMOJI}`
+            : result === "lose"
+            ? `💀 **Dealer has Blackjack.** ${CC_EMOJI}`
+            : `🤝 **Double Blackjack — Push.** ${CC_EMOJI}`;
+
+        const tempState = {
+          bet,
+          dealerHand: dealer,
+          hands: [player],
+          activeHandIndex: 0,
+          handBets: [bet],
+          messageLine: headline
+        };
+
+        const embed = bjBuildEmbed(cfg, tempState, {
+          revealDealer: true,
+          footerText: `New Balance: ${fmt(newBal)} ${currency}`
+        }).setDescription(
+          `${headline}\n` +
+            `**Bet:** ${fmt(bet)} ${currency}\n` +
+            `**Payout:** ${fmt(payout)} ${currency}\n` +
+            `**Net:** ${profit >= 0 ? "+" : ""}${fmt(profit)} ${currency} ${CC_EMOJI}`
+        );
+
+        return interaction.reply({ embeds: [embed], components: bjReplayButtons(bet) });
+      }
 
       const state = {
         key,
