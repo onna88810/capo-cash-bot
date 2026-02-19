@@ -1042,60 +1042,79 @@ if (interaction.isButton() && interaction.customId.startsWith("bj:")) {
 
   const currentHand = state.hands[state.activeHandIndex];
 
-  const settleAndPayout = async () => {
-    while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
-    const dealerTotal = bjScore(state.dealerHand);
+const settleAndPayout = async () => {
+  // Dealer draws to 17+
+  while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
 
-    for (let i = 0; i < state.hands.length; i++) {
-      const hand = state.hands[i];
-      const bet = Number(state.handBets[i] || state.bet);
-      const total = bjScore(hand);
-
-      let result = "lose";
-      if (total > 21) result = "lose";
-      else if (dealerTotal > 21) result = "win";
-      else if (total > dealerTotal) result = "win";
-      else if (total === dealerTotal) result = "push";
-
-      state.handResults[i] = result;
-
-      let payout = 0;
-      if (result === "win") payout = bet * 2;
-      if (result === "push") payout = bet;
-
-      if (payout > 0) {
-        await applyBalanceChange({
-          guildId: state.guildId,
-          userId: state.userId,
-          amount: payout,
-          type: "bj_payout",
-          reason: `Blackjack ${result}`,
-          actorId: "system"
-        });
-      }
-    }
-
-    const resultsText =
-      state.hands.length === 1
-        ? `Result: **${String(state.handResults[0]).toUpperCase()}**`
-        : `Hand 1: **${String(state.handResults[0]).toUpperCase()}** | Hand 2: **${String(state.handResults[1]).toUpperCase()}**`;
-
-    state.messageLine = `${resultsText} ${CC_EMOJI}`;
-    BJ_GAMES.set(state.key, state);
-
-    const row = await getUserRow(state.guildId, state.userId);
-    const newBal = Number(row?.balance ?? 0);
-
-    const embed = bjBuildEmbed(cfg, state, {
-      revealDealer: true,
-      footerText: `New Balance: ${fmt(newBal)} ${currency}`
-    });
-
-    return interaction.editReply({
-      embeds: [embed],
-      components: bjReplayButtons(state.bet)
-    });
+  const settleHand = (hand) => {
+    const ps = bjScore(hand);
+    const ds = bjScore(state.dealerHand);
+    if (ps > 21) return "lose";
+    if (ds > 21) return "win";
+    if (ps > ds) return "win";
+    if (ps === ds) return "push";
+    return "lose";
   };
+
+  const computePayout = () => {
+    let payout = 0;
+    for (let i = 0; i < state.hands.length; i++) {
+      const res = state.handResults[i];
+      const handBet = state.handBets[i];
+      if (res === "win") payout += handBet * 2;
+      else if (res === "push") payout += handBet;
+    }
+    return payout;
+  };
+
+  // Settle any unsettled hands
+  for (let i = 0; i < state.hands.length; i++) {
+    if (!state.handResults[i]) state.handResults[i] = settleHand(state.hands[i]);
+  }
+
+  const payout = computePayout();
+
+  // Apply payout once (total)
+  if (payout > 0) {
+    await applyBalanceChange({
+      guildId: state.guildId,
+      userId: state.userId,
+      amount: payout,
+      type: "bj_payout",
+      reason: "Blackjack result",
+      actorId: "system"
+    });
+  }
+
+  const row = await getUserRow(state.guildId, state.userId);
+  const newBal = Number(row?.balance ?? 0);
+
+  // EXACT old result text format
+  let resultLine = "";
+  if (state.hands.length === 1) {
+    const r = state.handResults[0];
+    resultLine = r === "win" ? "✅ You win!" : r === "push" ? "🤝 Push!" : "❌ You lose.";
+  } else {
+    const toEmoji = (r) => (r === "win" ? "✅" : r === "push" ? "🤝" : "❌");
+    resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
+  }
+
+  const embed = bjBuildEmbed(cfg, state, {
+    revealDealer: true,
+    footerText: `New Balance: ${fmt(newBal)} ${currency}`
+  }).setDescription(
+    `**Final:** ${resultLine}\n` +
+    `**Payout:** ${fmt(payout)} ${currency}\n` +
+    `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
+  );
+
+  BJ_GAMES.delete(state.key);
+
+  return interaction.editReply({
+    embeds: [embed],
+    components: bjReplayButtons(state.bet)
+  });
+};
 
   if (action === "hit") {
     currentHand.push(bjDrawCard());
