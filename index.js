@@ -1159,14 +1159,22 @@ const settleAndPayout = async () => {
     resultLine = `Hand 1: ${toEmoji(state.handResults[0])}  •  Hand 2: ${toEmoji(state.handResults[1])}`;
   }
 
-  const embed = bjBuildEmbed(cfg, state, {
-    revealDealer: true,
-    footerText: `New Balance: ${fmt(newBal)} ${currency}`
-  }).setDescription(
-    `**Final:** ${resultLine}\n` +
-    `**Payout:** ${fmt(payout)} ${currency}\n` +
-    `**Net:** ${payout > 0 ? "+" : ""}${fmt(payout - state.bet)} ${currency} ${CC_EMOJI}`
-  );
+  // Calculate total risked across all hands (handles split + double correctly)
+const totalRisked = state.handBets.reduce(
+  (sum, b) => sum + Number(b || 0),
+  0
+);
+
+const net = payout - totalRisked;
+
+const embed = bjBuildEmbed(cfg, state, {
+  revealDealer: true,
+  footerText: `New Balance: ${fmt(newBal)} ${currency}`
+}).setDescription(
+  `**Final:** ${resultLine}\n` +
+  `**Payout:** ${fmt(payout)} ${currency}\n` +
+  `**Net:** ${net >= 0 ? "+" : ""}${fmt(net)} ${currency} ${CC_EMOJI}`
+);
 
   BJ_GAMES.delete(state.key);
 
