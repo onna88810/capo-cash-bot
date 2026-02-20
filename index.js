@@ -1482,9 +1482,10 @@ if (score === 21) {
         messageLine: `Choose your move. ${CC_EMOJI}`
       };
 
-      BJ_GAMES.set(key, state);
+    BJ_GAMES.set(key, state);
 
-      const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+
 return interaction.reply({
   embeds: [embed],
   components: bjButtons(state)
