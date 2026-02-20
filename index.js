@@ -1424,10 +1424,34 @@ const settleAndPayout = async () => {
 
       const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
 
-      return interaction.reply({
-        embeds: [embed],
-        components: bjButtons(state)
-      });
+      // Modal submits should be acknowledged quickly
+await interaction.deferReply({ ephemeral: true });
+
+try {
+  const channel = await client.channels.fetch(state.channelId);
+  if (!channel || !channel.isTextBased()) throw new Error("Channel not text-based");
+
+  const msg = await channel.messages.fetch(msgId);
+
+  await msg.edit({
+    embeds: [embed],
+    files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+    components: slotsReplayButtons(state)
+  });
+
+  return interaction.editReply("✅ Spun!");
+} catch (e) {
+  console.error("Slots modal: failed to edit original message:", e?.message || e);
+
+  // Fallback: post results as a new message in-channel
+  await interaction.editReply("⚠️ Couldn’t update the original slots message — posted results below.");
+
+  return interaction.followUp({
+    embeds: [embed],
+    files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+    components: slotsReplayButtons(state)
+  });
+}
     }
 
 // ---------- SLOTS LINES MODAL ----------
