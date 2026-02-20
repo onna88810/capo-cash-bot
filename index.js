@@ -312,6 +312,31 @@ function bjScore(hand) {
   return total;
 }
 
+function bjScoreWithSoft(hand) {
+  let total = 0;
+  let aces = 0;
+
+  for (const c of hand) {
+    if (c.rank === "A") {
+      aces++;
+      total += 11;
+    } else {
+      total += c.value;
+    }
+  }
+
+  // Convert Aces from 11 -> 1 as needed
+  while (aces > 0 && total > 21) {
+    total -= 10;
+    aces--;
+  }
+
+  // If we still have an ace counted as 11, it's a "soft" total
+  const soft = aces > 0;
+
+  return { total, soft };
+}
+
 function bjFmtHand(hand) {
   return hand.map(c => `\`${c.rank}${c.suit}\``).join(" ");
 }
@@ -1104,7 +1129,17 @@ return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
 
 const settleAndPayout = async () => {
   // Dealer draws to 17+
-  while (bjScore(state.dealerHand) < 17) state.dealerHand.push(bjDrawCard());
+  while (true) {
+  const { total, soft } = bjScoreWithSoft(state.dealerHand);
+
+  // HIT on anything under 17, AND hit on soft 17
+  if (total < 17 || (total === 17 && soft)) {
+    state.dealerHand.push(bjDrawCard());
+    continue;
+  }
+
+  break;
+}
 
   const settleHand = (hand) => {
     const ps = bjScore(hand);
