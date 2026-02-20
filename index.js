@@ -1585,9 +1585,10 @@ if (
     if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
      // If Lines button, show modal (DO NOT deferUpdate)
 if (action === "picklines") {
-  const modal = new ModalBuilder()
-    .setCustomId(`sl:linesmodal:${key}`)
-    .setTitle("Slots — Pick Lines");
+  const msgId = interaction.message?.id; // the slots message we are editing
+const modal = new ModalBuilder()
+  .setCustomId(`sl:linesmodal:${key}:${msgId}`)
+  .setTitle("Slots — Choose Lines");
 
   const input = new TextInputBuilder()
     .setCustomId("sl_lines")
