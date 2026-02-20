@@ -1435,7 +1435,9 @@ if (
   interaction.type === InteractionType.ModalSubmit &&
   interaction.customId.startsWith("sl:linesmodal:")
 ) {
-  const key = interaction.customId.split(":")[2]; // sl:linesmodal:<key>
+  const parts = interaction.customId.split(":");
+const key = parts[2];   // sl:linesmodal:<key>:<msgId>
+const msgId = parts[3]; // original message id
 
   const raw = interaction.fields.getTextInputValue("sl_lines") || "";
   const lines = Math.floor(Number(raw.replace(/[^\d]/g, "")));
