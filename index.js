@@ -1491,7 +1491,6 @@ return interaction.reply({
   components: bjButtons(state)
 });
 }
-    }
 
 // ---------- SLOTS LINES MODAL ----------
 if (
