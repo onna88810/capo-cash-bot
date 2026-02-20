@@ -1221,6 +1221,25 @@ const embed = bjBuildEmbed(cfg, state, {
 
   if (action === "hit") {
     currentHand.push(bjDrawCard());
+    
+    const score = bjScore(currentHand);
+
+// ✅ Auto-stand on 21
+if (score === 21) {
+  state.messageLine = "🃏 21!";
+
+  // If split and still on first hand → move to second
+  if (state.hands.length === 2 && state.activeHandIndex === 0) {
+    state.activeHandIndex = 1;
+    state.messageLine = "21! Now playing Hand 2.";
+    BJ_GAMES.set(state.key, state);
+    const embed = bjBuildEmbed(cfg, state, { revealDealer: false });
+    return interaction.editReply({ embeds: [embed], components: bjButtons(state) });
+  }
+
+  BJ_GAMES.set(state.key, state);
+  return settleAndPayout();
+}
 
     if (bjScore(currentHand) > 21) {
       state.messageLine = "💥 Bust!";
