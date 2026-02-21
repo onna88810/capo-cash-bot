@@ -57,15 +57,26 @@ async function getTwemojiDataUri(emoji) {
   if (!code) return null;
 
   const url = `${TWEMOJI_BASE}/${code}.svg`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch twemoji ${emoji}: ${res.status}`);
 
-  const svgText = await res.text();
-  const b64 = Buffer.from(svgText, "utf8").toString("base64");
-  const dataUri = `data:image/svg+xml;base64,${b64}`;
+  // 3 tries with small backoff, NEVER throw
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  TWEMOJI_CACHE.set(emoji, dataUri);
-  return dataUri;
+      const svgText = await res.text();
+      const b64 = Buffer.from(svgText, "utf8").toString("base64");
+      const dataUri = `data:image/svg+xml;base64,${b64}`;
+
+      TWEMOJI_CACHE.set(emoji, dataUri);
+      return dataUri;
+    } catch (err) {
+      // tiny backoff
+      await new Promise((r) => setTimeout(r, 150 * attempt));
+    }
+  }
+
+  return null;
 }
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
