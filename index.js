@@ -875,11 +875,18 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
           <image x="${ix}" y="${iy}" width="${size}" height="${size}" href="${dataUri}" />
         `;
       } else {
-        svg += `
-          <text x="${x + cellSize / 2}" y="${y + cellSize / 2 + 15}"
-            font-size="60" text-anchor="middle" fill="white">?</text>
-        `;
-      }
+  // Render the actual emoji (fallback if twemoji fetch failed)
+  svg += `
+    <text
+      x="${x + cellSize / 2}"
+      y="${y + cellSize / 2}"
+      font-size="78"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      fill="white"
+    >${emoji}</text>
+  `;
+}
     }
   }
 
@@ -1634,13 +1641,14 @@ if (
   SLOT_GAMES.set(key, state);
 
   const embed = slotsEmbed(cfg, state, {
-    status,
-    grid: null,
-    wins,
-    payout,
-    tier,
-    totalBet
-  });
+  status,
+  // If image fails, show the text grid in the embed
+  grid: boardPng ? null : grid,
+  wins,
+  payout,
+  tier,
+  totalBet
+});
 
   // ✅ unique filename avoids Discord caching weirdness
   const filename = `slots-${Date.now()}.png`;
@@ -1804,13 +1812,14 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     SLOT_GAMES.set(key, state);
 
     const embed = slotsEmbed(cfg, state, {
-      status,
-      grid: null,
-      wins,
-      payout,
-      tier,
-      totalBet
-    });
+  status,
+  // If image fails, show the text grid in the embed
+  grid: boardPng ? null : grid,
+  wins,
+  payout,
+  tier,
+  totalBet
+});
 
     // ✅ unique filename avoids Discord caching weirdness
     const filename = `slots-${Date.now()}.png`;
