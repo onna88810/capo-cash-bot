@@ -848,16 +848,17 @@ const amount =
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const SLOT_ICON_DIR = path.resolve(process.cwd(), "assets", "slots");
+const SLOT_ICON_DIR = path.resolve(process.cwd(), "assets");
 
 const SYMBOL_TO_ICON_FILE = {
-  diamond: "diamond.png",
-  briefcase: "briefcase.png",
-  moneybag: "moneybag.png",
-  cashstack: "cashstack.png",
-  coin: "coin.png",
-  dice: "dice.png",
-  capo: "capo.png",
+  raccoon: "IMG_0767.png",
+  diamond: "IMG_0773.png",
+  briefcase: "IMG_0774.png",
+  moneybag: "IMG_0777.png",
+  cashstack: "IMG_0780.png",
+  coin: "IMG_0781.png",
+  dice: "IMG_0783.png",
+  capo: "IMG_0786.png",
 };
 
 const ICON_DATAURI_CACHE = new Map();
