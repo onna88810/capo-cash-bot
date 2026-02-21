@@ -150,15 +150,20 @@ const SLOT_PAYLINES = [
   [[0,0],[1,1],[0,2]],
 ];
 
-// Weighted symbols (visuals only now)
-const SLOT_SYMBOLS = [
-  { sym: "🍒", w: 40 },
-  { sym: "🍋", w: 30 },
-  { sym: "🔔", w: 18 },
-  { sym: "💎", w: 9  },
-  { sym: "7️⃣", w: 3  },
+// ============================================
+// 🎰 SLOT SYMBOL DEFINITIONS (ID BASED)
+// ============================================
+
+const BASE_SYMBOLS = [
+  { id: "diamond", weight: 5 },
+  { id: "briefcase", weight: 6 },
+  { id: "moneybag", weight: 8 },
+  { id: "cashstack", weight: 10 },
+  { id: "coin", weight: 14 },
+  { id: "dice", weight: 16 }
 ];
-const CAPO_SYMBOL = { sym: "capo", w: 1 }; // jackpot-only symbol
+
+const CAPO_SYMBOL = { id: "capo", weight: 1 }; // jackpot only
 
 function slotsKey(guildId, channelId, userId) {
   return `slots_${guildId}_${channelId}_${userId}`;
@@ -166,14 +171,16 @@ function slotsKey(guildId, channelId, userId) {
 function slotsExpired(state) {
   return Date.now() - state.createdAt > SLOT_TTL_MS;
 }
-function slotsPickSymbol(symbolPool = SLOT_SYMBOLS) {
-  const total = symbolPool.reduce((s, x) => s + x.w, 0);
+function slotsPickSymbol(symbolPool = BASE_SYMBOLS) {
+  const total = symbolPool.reduce((s, x) => s + x.weight, 0);
   let r = Math.random() * total;
+
   for (const x of symbolPool) {
-    r -= x.w;
-    if (r <= 0) return x.sym;
+    r -= x.weight;
+    if (r <= 0) return x.id;
   }
-  return symbolPool[0].sym;
+
+  return symbolPool[0].id;
 }
 
 function slotsBuildGrid(symbolPool = SLOT_SYMBOLS) {
@@ -835,6 +842,48 @@ const amount =
 });
 
 // ==============================
+// 🎰 SLOT IMAGE HELPERS
+// ==============================
+
+import fs from "node:fs/promises";
+import path from "node:path";
+
+const SLOT_ICON_DIR = path.resolve(process.cwd(), "assets", "slots");
+
+const SYMBOL_TO_ICON_FILE = {
+  diamond: "diamond.png",
+  briefcase: "briefcase.png",
+  moneybag: "moneybag.png",
+  cashstack: "cashstack.png",
+  coin: "coin.png",
+  dice: "dice.png",
+  capo: "capo.png",
+};
+
+const ICON_DATAURI_CACHE = new Map();
+
+async function getSymbolDataUri(symbolId) {
+  const cached = ICON_DATAURI_CACHE.get(symbolId);
+  if (cached) return cached;
+
+  const file = SYMBOL_TO_ICON_FILE[symbolId];
+  if (!file) return null;
+
+  try {
+    const abs = path.join(SLOT_ICON_DIR, file);
+    const buf = await fs.readFile(abs);
+    const b64 = buf.toString("base64");
+    const dataUri = `data:image/png;base64,${b64}`;
+
+    ICON_DATAURI_CACHE.set(symbolId, dataUri);
+    return dataUri;
+  } catch (e) {
+    console.error("Slots icon missing:", symbolId);
+    return null;
+  }
+}
+
+// ==============================
 // 🎰 SLOT BOARD IMAGE GENERATOR
 // ==============================
 
@@ -847,14 +896,13 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
 
   let svg = `
   <svg width="${width}" height="${height}"
-    xmlns="http://www.w3.org/2000/svg"
-    xmlns:xlink="http://www.w3.org/1999/xlink">
+    xmlns="http://www.w3.org/2000/svg">
     <rect width="100%" height="100%" fill="#050505"/>
     <rect x="${padding}" y="${padding}" width="${boardSize}" height="${boardSize}" rx="25"
       fill="#1a1a1a" stroke="#00b36b" stroke-width="6"/>
   `;
 
-  // Draw cells + emoji images
+  // Draw cells + custom icon images
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const x = padding + col * cellSize;
@@ -865,8 +913,10 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
           fill="#0a0a0a" stroke="#1f1f1f" stroke-width="3"/>
       `;
 
-      const emoji = grid[row][col];
-      const dataUri = await getTwemojiDataUri(emoji);
+      // IMPORTANT: grid now contains symbol IDs like "diamond", "coin", etc.
+      const symbolId = grid[row][col];
+
+      const dataUri = await getSymbolDataUri(symbolId);
 
       if (dataUri) {
         const size = 92;
@@ -877,18 +927,19 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
           <image x="${ix}" y="${iy}" width="${size}" height="${size}" href="${dataUri}" />
         `;
       } else {
-  // Render the actual emoji (fallback if twemoji fetch failed)
-  svg += `
-    <text
-      x="${x + cellSize / 2}"
-      y="${y + cellSize / 2}"
-      font-size="78"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      fill="white"
-    >${emoji}</text>
-  `;
-}
+        // fallback if the icon file is missing
+        svg += `
+          <text
+            x="${x + cellSize / 2}"
+            y="${y + cellSize / 2}"
+            font-size="22"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            fill="white"
+            font-family="Arial"
+          >${String(symbolId).slice(0, 10)}</text>
+        `;
+      }
     }
   }
 
@@ -1767,7 +1818,9 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
 
     // CAPO symbol only on MAX BET tier
     const isMaxTier = tier.id === "max50";
-    const symbolPool = isMaxTier ? [...SLOT_SYMBOLS, CAPO_SYMBOL] : SLOT_SYMBOLS;
+    const symbolPool = isMaxTier
+  ? [...BASE_SYMBOLS, CAPO_SYMBOL]
+  : BASE_SYMBOLS;
 
     // Spin grid + evaluate
     const grid = slotsBuildGrid(symbolPool);
