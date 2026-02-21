@@ -158,6 +158,7 @@ const SLOT_SYMBOLS = [
   { sym: "💎", w: 9  },
   { sym: "7️⃣", w: 3  },
 ];
+const CAPO_SYMBOL = { sym: "capo", w: 1 }; // jackpot-only symbol
 
 function slotsKey(guildId, channelId, userId) {
   return `slots_${guildId}_${channelId}_${userId}`;
@@ -165,20 +166,21 @@ function slotsKey(guildId, channelId, userId) {
 function slotsExpired(state) {
   return Date.now() - state.createdAt > SLOT_TTL_MS;
 }
-function slotsPickSymbol() {
-  const total = SLOT_SYMBOLS.reduce((s, x) => s + x.w, 0);
+function slotsPickSymbol(symbolPool = SLOT_SYMBOLS) {
+  const total = symbolPool.reduce((s, x) => s + x.w, 0);
   let r = Math.random() * total;
-  for (const x of SLOT_SYMBOLS) {
+  for (const x of symbolPool) {
     r -= x.w;
     if (r <= 0) return x.sym;
   }
-  return SLOT_SYMBOLS[0].sym;
+  return symbolPool[0].sym;
 }
-function slotsBuildGrid() {
+
+function slotsBuildGrid(symbolPool = SLOT_SYMBOLS) {
   return [
-    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
-    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
-    [slotsPickSymbol(), slotsPickSymbol(), slotsPickSymbol()],
+    [slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool)],
+    [slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool)],
+    [slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool)],
   ];
 }
 function slotsFmtGrid(grid) {
@@ -1517,7 +1519,7 @@ if (
 ) {
   const parts = interaction.customId.split(":");
   const key = parts[2];   // sl:linesmodal:<key>:<msgId>
-  const msgId = parts[3]; // original message id (not required for this flow, but fine to keep)
+  // const msgId = parts[3]; // optional, not needed
 
   const raw = interaction.fields.getTextInputValue("sl_lines") || "";
   const lines = Math.floor(Number(raw.replace(/[^\d]/g, "")));
@@ -1563,7 +1565,7 @@ if (
   const cfg = await getConfig(state.guildId);
   const currency = cfg.currency_name || "Capo Cash";
 
-  const tier = slotsResolveTier(lines, "single");
+  const tier = slotsResolveTier(lines, "single"); // always single here
   const betPerLine = tier.betPerLine;
   const totalBet = lines * betPerLine;
 
@@ -1583,7 +1585,6 @@ if (
       totalBet
     });
 
-    // Modal submits are best as reply()
     return interaction.reply({
       embeds: [embed],
       components: slotsLineButtons(state),
@@ -1591,13 +1592,16 @@ if (
     });
   }
 
-  const grid = slotsBuildGrid();
+  // Single tier = no CAPO symbol
+  const symbolPool = SLOT_SYMBOLS;
+  const grid = slotsBuildGrid(symbolPool);
+
   const { wins } = slotsEval(grid, lines);
 
   let payout = wins.length * tier.winPerLine;
-  let jackpotHit = false;
+  let jackpotHit = false; // single tier won't ever jackpot, but keeping consistent
 
-  // (single tier can’t jackpot, but keeping pattern consistent)
+  // (this will never run for single, but harmless)
   if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
     if (Math.random() < tier.jackpot.chance) {
       payout = tier.jackpot.amount;
@@ -1641,28 +1645,24 @@ if (
   SLOT_GAMES.set(key, state);
 
   const embed = slotsEmbed(cfg, state, {
-  status,
-  // If image fails, show the text grid in the embed
-  grid: boardPng ? null : grid,
-  wins,
-  payout,
-  tier,
-  totalBet
-});
+    status,
+    grid: boardPng ? null : grid, // text fallback if image fails
+    wins,
+    payout,
+    tier,
+    totalBet
+  });
 
-  // ✅ unique filename avoids Discord caching weirdness
   const filename = `slots-${Date.now()}.png`;
-
   if (boardPng) embed.setImage(`attachment://${filename}`);
   else embed.setImage(null);
 
-  // Modal submit hasn't deferred → reply is fine
   return interaction.reply({
     embeds: [embed],
     files: boardPng ? [{ attachment: boardPng, name: filename }] : [],
     components: slotsReplayButtons(state)
   });
- }
+}
 
 // ---------- SLOTS BUTTONS ----------
 if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
@@ -1692,9 +1692,11 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
   // ✅ everything else uses deferUpdate
   await interaction.deferUpdate();
 
+  // -----------------------------
+  // Load/rebuild state
+  // -----------------------------
   let state = SLOT_GAMES.get(key);
 
-  // If bot restarted / different instance, rebuild state from the key
   if (!state) {
     const partsKey = key.split("_"); // slots_${guildId}_${channelId}_${userId}
     const guildId = partsKey[1];
@@ -1718,6 +1720,7 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
   state.createdAt = Date.now();
   SLOT_GAMES.set(key, state);
 
+  // Only owner can use buttons
   if (interaction.user.id !== state.userId) {
     return interaction.followUp({
       content: "🚫 This isn’t your slots game.",
@@ -1728,11 +1731,15 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
   const cfg = await getConfig(state.guildId);
   const currency = cfg.currency_name || "Capo Cash";
 
-  const runSpin = async (linesCount, tierId = null) => {
+  // -----------------------------
+  // Spin helper (one source of truth)
+  // -----------------------------
+  const spin = async (linesCount, tierId = null) => {
     const tier = slotsResolveTier(linesCount, tierId);
-    const betPerLine = tier.betPerLine;
-    const totalBet = linesCount * betPerLine;
 
+    const totalBet = linesCount * tier.betPerLine;
+
+    // Take bet
     const take = await applyBalanceChange({
       guildId: state.guildId,
       userId: state.userId,
@@ -1749,7 +1756,7 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
         totalBet
       });
 
-      // ✅ clear stale image/attachments on edits
+      // Clear old images on edit
       return interaction.editReply({
         embeds: [embed],
         components: slotsLineButtons(state),
@@ -1758,19 +1765,27 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
       });
     }
 
-    const grid = slotsBuildGrid();
+    // CAPO symbol only on MAX BET tier
+    const isMaxTier = tier.id === "max50";
+    const symbolPool = isMaxTier ? [...SLOT_SYMBOLS, CAPO_SYMBOL] : SLOT_SYMBOLS;
+
+    // Spin grid + evaluate
+    const grid = slotsBuildGrid(symbolPool);
     const { wins } = slotsEval(grid, linesCount);
 
+    // Base payout = #winning lines * winPerLine
     let payout = wins.length * tier.winPerLine;
     let jackpotHit = false;
 
-    if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
+    // Jackpot only possible when playing 8 lines AND all 8 lines win
+    if (linesCount === 8 && wins.length === 8 && tier.jackpot) {
       if (Math.random() < tier.jackpot.chance) {
         payout = tier.jackpot.amount;
         jackpotHit = true;
       }
     }
 
+    // Pay winnings
     if (payout > 0) {
       await applyBalanceChange({
         guildId: state.guildId,
@@ -1782,9 +1797,11 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
       });
     }
 
+    // Get new balance
     const row = await getUserRow(state.guildId, state.userId);
     const newBal = Number(row?.balance ?? 0);
 
+    // Build win overlays
     const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
 
     let boardPng = null;
@@ -1806,49 +1823,49 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
         : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
           `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
 
+    // Save latest selection
     state.linesCount = linesCount;
     state.tierId = tier.id;
     state.lastBetTotal = totalBet;
     SLOT_GAMES.set(key, state);
 
     const embed = slotsEmbed(cfg, state, {
-  status,
-  // If image fails, show the text grid in the embed
-  grid: boardPng ? null : grid,
-  wins,
-  payout,
-  tier,
-  totalBet
-});
+      status,
+      // If image fails, show text grid
+      grid: boardPng ? null : grid,
+      wins,
+      payout,
+      tier,
+      totalBet
+    });
 
-    // ✅ unique filename avoids Discord caching weirdness
     const filename = `slots-${Date.now()}.png`;
-
     if (boardPng) embed.setImage(`attachment://${filename}`);
     else embed.setImage(null);
 
-    // ✅ critical: clear old attachments every time you edit
     return interaction.editReply({
       embeds: [embed],
-      attachments: [],
+      attachments: [], // ✅ clears stale image
       files: boardPng ? [{ attachment: boardPng, name: filename }] : [],
       components: slotsReplayButtons(state)
     });
   };
 
-  // ✅ route actions
+  // -----------------------------
+  // Route actions
+  // -----------------------------
   if (action === "all10") {
     state.linesCount = 8;
     state.tierId = "all10";
     SLOT_GAMES.set(key, state);
-    return runSpin(8, "all10");
+    return spin(8, "all10");
   }
 
   if (action === "max50") {
     state.linesCount = 8;
     state.tierId = "max50";
     SLOT_GAMES.set(key, state);
-    return runSpin(8, "max50");
+    return spin(8, "max50");
   }
 
   if (action === "again_same") {
@@ -1862,7 +1879,11 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
         files: []
       });
     }
-    return runSpin(linesCount, state.tierId || (linesCount === 8 ? "all10" : "single"));
+
+    const replayTierId =
+      state.tierId || (linesCount === 8 ? "all10" : "single");
+
+    return spin(linesCount, replayTierId);
   }
 
   if (action === "new_game") {
@@ -1872,7 +1893,6 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
 
     const embed = slotsEmbed(cfg, state, { status: "Select how you want to play." });
 
-    // ✅ clear old attachments when resetting the game
     return interaction.editReply({
       embeds: [embed],
       components: slotsLineButtons(state),
@@ -1880,6 +1900,9 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
       files: []
     });
   }
+
+  // unknown action -> ignore
+  return;
 }
 
     // ====================================================
