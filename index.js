@@ -37,48 +37,6 @@ import {
 import cron from "node-cron";
 import { Resvg } from "@resvg/resvg-js";
 
-// ===== Twemoji image rendering (for slot board) =====
-const TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg";
-const EMOJI_TO_TWEMOJI = {
-  "🍒": "1f352",
-  "🍋": "1f34b",
-  "🔔": "1f514",
-  "💎": "1f48e",
-  "7️⃣": "0037-fe0f-20e3"
-};
-
-const TWEMOJI_CACHE = new Map(); // emoji -> data URI
-
-async function getTwemojiDataUri(emoji) {
-  const cached = TWEMOJI_CACHE.get(emoji);
-  if (cached) return cached;
-
-  const code = EMOJI_TO_TWEMOJI[emoji];
-  if (!code) return null;
-
-  const url = `${TWEMOJI_BASE}/${code}.svg`;
-
-  // 3 tries with small backoff, NEVER throw
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const svgText = await res.text();
-      const b64 = Buffer.from(svgText, "utf8").toString("base64");
-      const dataUri = `data:image/svg+xml;base64,${b64}`;
-
-      TWEMOJI_CACHE.set(emoji, dataUri);
-      return dataUri;
-    } catch (err) {
-      // tiny backoff
-      await new Promise((r) => setTimeout(r, 150 * attempt));
-    }
-  }
-
-  return null;
-}
-
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const DISCORD_APP_ID = process.env.DISCORD_APP_ID;
 const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
@@ -183,7 +141,7 @@ function slotsPickSymbol(symbolPool = BASE_SYMBOLS) {
   return symbolPool[0].id;
 }
 
-function slotsBuildGrid(symbolPool = SLOT_SYMBOLS) {
+function slotsBuildGrid(symbolPool = BASE_SYMBOLS) {
   return [
     [slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool)],
     [slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool), slotsPickSymbol(symbolPool)],
@@ -1645,8 +1603,8 @@ if (
   }
 
   // Single tier = no CAPO symbol
-  const symbolPool = SLOT_SYMBOLS;
-  const grid = slotsBuildGrid(symbolPool);
+const symbolPool = BASE_SYMBOLS; // uses your weighted id symbols
+const grid = slotsBuildGrid(symbolPool);
 
   const { wins } = slotsEval(grid, lines);
 
