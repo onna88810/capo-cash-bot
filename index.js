@@ -1498,8 +1498,8 @@ if (
   interaction.customId.startsWith("sl:linesmodal:")
 ) {
   const parts = interaction.customId.split(":");
-const key = parts[2];   // sl:linesmodal:<key>:<msgId>
-const msgId = parts[3]; // original message id
+  const key = parts[2];   // sl:linesmodal:<key>:<msgId>
+  const msgId = parts[3]; // original message id (not required for this flow, but fine to keep)
 
   const raw = interaction.fields.getTextInputValue("sl_lines") || "";
   const lines = Math.floor(Number(raw.replace(/[^\d]/g, "")));
@@ -1536,16 +1536,11 @@ const msgId = parts[3]; // original message id
     return interaction.reply({ content: "🚫 This isn’t your slots game.", ephemeral: true });
   }
 
-  // Refresh TTL
+  // Refresh TTL + selection
   state.createdAt = Date.now();
   state.linesCount = lines;
   state.tierId = "single";
   SLOT_GAMES.set(key, state);
-
-  // We need to reuse your runSpin() logic — easiest is to trigger the same path
-  // by calling the same code inline here (copy/paste your runSpin function body)
-  // BUT since your runSpin is currently inside the sl: button handler scope,
-  // we’ll do this: call the same code by duplicating a small wrapper right here.
 
   const cfg = await getConfig(state.guildId);
   const currency = cfg.currency_name || "Capo Cash";
@@ -1569,6 +1564,8 @@ const msgId = parts[3]; // original message id
       tier,
       totalBet
     });
+
+    // Modal submits are best as reply()
     return interaction.reply({
       embeds: [embed],
       components: slotsLineButtons(state),
@@ -1582,7 +1579,7 @@ const msgId = parts[3]; // original message id
   let payout = wins.length * tier.winPerLine;
   let jackpotHit = false;
 
-  // (single tier can’t jackpot, so this won’t trigger, but keeping pattern consistent)
+  // (single tier can’t jackpot, but keeping pattern consistent)
   if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
     if (Math.random() < tier.jackpot.chance) {
       payout = tier.jackpot.amount;
@@ -1634,16 +1631,19 @@ const msgId = parts[3]; // original message id
     totalBet
   });
 
-  if (boardPng) embed.setImage("attachment://slots.png");
+  // ✅ unique filename avoids Discord caching weirdness
+  const filename = `slots-${Date.now()}.png`;
 
-  // IMPORTANT: modal submits must use reply() or editReply() depending on your flow.
-  // Since modal submit hasn't deferred, reply is fine:
+  if (boardPng) embed.setImage(`attachment://${filename}`);
+  else embed.setImage(null);
+
+  // Modal submit hasn't deferred → reply is fine
   return interaction.reply({
     embeds: [embed],
-    files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+    files: boardPng ? [{ attachment: boardPng, name: filename }] : [],
     components: slotsReplayButtons(state)
   });
-}
+ }
 
 // ---------- SLOTS BUTTONS ----------
 if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
@@ -1729,9 +1729,13 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
         tier,
         totalBet
       });
+
+      // ✅ clear stale image/attachments on edits
       return interaction.editReply({
         embeds: [embed],
-        components: slotsLineButtons(state)
+        components: slotsLineButtons(state),
+        attachments: [],
+        files: []
       });
     }
 
@@ -1797,11 +1801,17 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
       totalBet
     });
 
-    if (boardPng) embed.setImage("attachment://slots.png");
+    // ✅ unique filename avoids Discord caching weirdness
+    const filename = `slots-${Date.now()}.png`;
 
+    if (boardPng) embed.setImage(`attachment://${filename}`);
+    else embed.setImage(null);
+
+    // ✅ critical: clear old attachments every time you edit
     return interaction.editReply({
       embeds: [embed],
-      files: boardPng ? [{ attachment: boardPng, name: "slots.png" }] : [],
+      attachments: [],
+      files: boardPng ? [{ attachment: boardPng, name: filename }] : [],
       components: slotsReplayButtons(state)
     });
   };
@@ -1825,7 +1835,12 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     const linesCount = Number(state.linesCount || 0);
     if (!linesCount) {
       const embed = slotsEmbed(cfg, state, { status: "Pick your play first." });
-      return interaction.editReply({ embeds: [embed], components: slotsLineButtons(state) });
+      return interaction.editReply({
+        embeds: [embed],
+        components: slotsLineButtons(state),
+        attachments: [],
+        files: []
+      });
     }
     return runSpin(linesCount, state.tierId || (linesCount === 8 ? "all10" : "single"));
   }
@@ -1836,9 +1851,12 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     SLOT_GAMES.set(key, state);
 
     const embed = slotsEmbed(cfg, state, { status: "Select how you want to play." });
+
+    // ✅ clear old attachments when resetting the game
     return interaction.editReply({
       embeds: [embed],
       components: slotsLineButtons(state),
+      attachments: [],
       files: []
     });
   }
