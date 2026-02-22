@@ -211,15 +211,18 @@ function slotsLineButtons(state) {
 
 function slotsReplayButtons(state) {
   const key = state.key;
-  const lines = state.linesCount ?? 0;
+  const lines = Number(state.linesCount || 0);
+  const tierId = state.tierId || (lines === 8 ? "all10" : "single");
 
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`sl:again_same:${key}`)
+        // ✅ encode lines + tier into the button id
+        .setCustomId(`sl:again:${lines}:${tierId}:${key}`)
         .setLabel("Play again (same bet)")
         .setStyle(ButtonStyle.Success)
         .setDisabled(lines <= 0),
+
       new ButtonBuilder()
         .setCustomId(`sl:new_game:${key}`)
         .setLabel("New game")
@@ -2120,19 +2123,49 @@ if (action === "max50") {
   return spin(8, "max50");
 }
 
-if (action === "again_same") {
-  const linesCount = Number(state.linesCount || 0);
-  if (!linesCount) {
-    const embed = slotsEmbed(cfg, state, { status: "Pick your play first." });
-    return interaction.editReply({
-      embeds: [embed],
-      components: slotsLineButtons(state),
-      attachments: [],
-      files: []
+// ✅ New replay format: sl:again:<lines>:<tierId>:<key>
+if (action === "again") {
+  const linesCount = Number(parts[2] || 0);
+  const replayTierId = parts[3] || (linesCount === 8 ? "all10" : "single");
+  const keyFromBtn = parts.slice(4).join(":");
+
+  const resolvedKey = keyFromBtn || key;
+
+  let s = SLOT_GAMES.get(resolvedKey);
+
+  // Rebuild state if missing (handles bot restarts)
+  if (!s) {
+    const pieces = resolvedKey.split("_");
+    const guildId = pieces[1];
+    const channelId = pieces[2];
+    const userId = pieces[3];
+
+    s = {
+      key: resolvedKey,
+      createdAt: Date.now(),
+      guildId,
+      channelId,
+      userId,
+      linesCount,
+      tierId: replayTierId
+    };
+  }
+
+  // Owner protection
+  if (interaction.user.id !== s.userId) {
+    return interaction.followUp({
+      content: "🚫 This isn’t your slots game.",
+      ephemeral: true
     });
   }
 
-  const replayTierId = state.tierId || (linesCount === 8 ? "all10" : "single");
+  s.createdAt = Date.now();
+  s.linesCount = linesCount;
+  s.tierId = replayTierId;
+  SLOT_GAMES.set(resolvedKey, s);
+
+  state = s;
+
   return spin(linesCount, replayTierId);
 }
 
