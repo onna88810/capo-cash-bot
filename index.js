@@ -804,8 +804,6 @@ const amount =
 // 🎰 SLOT IMAGE HELPERS
 // ==============================
 
-import fs from "node:fs/promises";
-import path from "node:path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import GIFEncoder from "gif-encoder-2";
 
@@ -1921,127 +1919,164 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
   const cfg = await getConfig(state.guildId);
   const currency = cfg.currency_name || "Capo Cash";
 
-  // -----------------------------
-  // Spin helper (one source of truth)
-  // -----------------------------
-  const spin = async (linesCount, tierId = null) => {
-    const tier = slotsResolveTier(linesCount, tierId);
+// -----------------------------
+// Spin helper (one source of truth)
+// -----------------------------
+const spin = async (linesCount, tierId = null) => {
+  const tier = slotsResolveTier(linesCount, tierId);
+  const totalBet = linesCount * tier.betPerLine;
 
-    const totalBet = linesCount * tier.betPerLine;
+  // Take bet
+  const take = await applyBalanceChange({
+    guildId: state.guildId,
+    userId: state.userId,
+    amount: -totalBet,
+    type: "slots_bet",
+    reason: `Slots bet (${tier.label}, ${linesCount} lines)`,
+    actorId: state.userId
+  });
 
-    // Take bet
-    const take = await applyBalanceChange({
-      guildId: state.guildId,
-      userId: state.userId,
-      amount: -totalBet,
-      type: "slots_bet",
-      reason: `Slots bet (${tier.label}, ${linesCount} lines)`,
-      actorId: state.userId
-    });
-
-    if (!take.ok) {
-      const embed = slotsEmbed(cfg, state, {
-        status: `❌ Not enough ${currency}.`,
-        tier,
-        totalBet
-      });
-
-      // Clear old images on edit
-      return interaction.editReply({
-        embeds: [embed],
-        components: slotsLineButtons(state),
-        attachments: [],
-        files: []
-      });
-    }
-
-    // CAPO symbol only on MAX BET tier
-   const isJackpotTier = tier.id === "all10" || tier.id === "max50";
-const symbolPool = isJackpotTier
-  ? [...BASE_SYMBOLS, CAPO_SYMBOL]
-  : BASE_SYMBOLS;
-
-    // Spin grid + evaluate
-    const grid = slotsBuildGrid(symbolPool);
-    const { wins } = slotsEval(grid, linesCount);
-
-    // Base payout = #winning lines * winPerLine
-    let payout = wins.length * tier.winPerLine;
-    let jackpotHit = false;
-
-    // Jackpot only possible when playing 8 lines AND all 8 lines win
-    if (linesCount === 8 && wins.length === 8 && tier.jackpot) {
-      if (Math.random() < tier.jackpot.chance) {
-        payout = tier.jackpot.amount;
-        jackpotHit = true;
-      }
-    }
-
-    // Pay winnings
-    if (payout > 0) {
-      await applyBalanceChange({
-        guildId: state.guildId,
-        userId: state.userId,
-        amount: payout,
-        type: jackpotHit ? "slots_jackpot" : "slots_win",
-        reason: jackpotHit ? `Slots JACKPOT (${tier.label})` : `Slots win (${tier.label})`,
-        actorId: "system"
-      });
-    }
-
-    // Get new balance
-    const row = await getUserRow(state.guildId, state.userId);
-    const newBal = Number(row?.balance ?? 0);
-
-    // Build win overlays
-    const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
-
-    let boardPng = null;
-    try {
-      boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
-    } catch (err) {
-      console.error("Slots board image render failed:", err?.message || err);
-    }
-
-    const net = payout - totalBet;
-
-    const status =
-      jackpotHit
-        ? `🏆 **JACKPOT!** You hit **${fmt(payout)}** ${currency}! ${CC_EMOJI}\n` +
-          `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
-        : payout > 0
-        ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
-          `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
-        : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
-          `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
-
-    // Save latest selection
-    state.linesCount = linesCount;
-    state.tierId = tier.id;
-    state.lastBetTotal = totalBet;
-    SLOT_GAMES.set(key, state);
-
+  if (!take.ok) {
     const embed = slotsEmbed(cfg, state, {
-      status,
-      // If image fails, show text grid
-      grid: boardPng ? null : grid,
-      wins,
-      payout,
+      status: `❌ Not enough ${currency}.`,
       tier,
       totalBet
     });
 
-    const filename = `slots-${Date.now()}.png`;
-    if (boardPng) embed.setImage(`attachment://${filename}`);
-    else embed.setImage(null);
+    // Clear old images on edit
+    return interaction.editReply({
+      embeds: [embed],
+      components: slotsLineButtons(state),
+      attachments: [],
+      files: []
+    });
+  }
+
+  // CAPO symbol only on MAX BET tier (and/or any tier you want)
+  const isMaxTier = tier.id === "max50";
+  const symbolPool = isMaxTier ? [...BASE_SYMBOLS, CAPO_SYMBOL] : BASE_SYMBOLS;
+
+  // Spin grid + evaluate
+  const grid = slotsBuildGrid(symbolPool);
+  const { wins } = slotsEval(grid, linesCount);
+
+  // Base payout = #winning lines * winPerLine
+  let payout = wins.length * tier.winPerLine;
+  let jackpotHit = false;
+
+  // Jackpot only possible when playing 8 lines AND all 8 lines win
+  if (linesCount === 8 && wins.length === 8 && tier.jackpot) {
+    if (Math.random() < tier.jackpot.chance) {
+      payout = tier.jackpot.amount;
+      jackpotHit = true;
+    }
+  }
+
+  // Pay winnings
+  if (payout > 0) {
+    await applyBalanceChange({
+      guildId: state.guildId,
+      userId: state.userId,
+      amount: payout,
+      type: jackpotHit ? "slots_jackpot" : "slots_win",
+      reason: jackpotHit ? `Slots JACKPOT (${tier.label})` : `Slots win (${tier.label})`,
+      actorId: "system"
+    });
+  }
+
+  // Get new balance
+  const row = await getUserRow(state.guildId, state.userId);
+  const newBal = Number(row?.balance ?? 0);
+
+  const net = payout - totalBet;
+
+  const status =
+    jackpotHit
+      ? `🏆 **JACKPOT!** You hit **${fmt(payout)}** ${currency}! ${CC_EMOJI}\n` +
+        `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+      : payout > 0
+      ? `✅ You won **${fmt(payout)}** ${currency} (${net >= 0 ? "+" : ""}${fmt(net)} net) ${CC_EMOJI}\n` +
+        `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`
+      : `❌ No winning lines — **-${fmt(totalBet)}** ${currency} ${CC_EMOJI}\n` +
+        `💰 New Balance: **${fmt(newBal)} ${currency}** ${CC_EMOJI}`;
+
+  // Save latest selection
+  state.linesCount = linesCount;
+  state.tierId = tier.id;
+  state.lastBetTotal = totalBet;
+  SLOT_GAMES.set(key, state);
+
+  // Build win overlays for the PNG
+  const winningLinePaths = wins.map((w) => SLOT_PAYLINES[w.line - 1]);
+
+  // ---- Build media (GIF then PNG) ----
+  let spinGif = null;
+  try {
+    // buildSlotsSpinGif(finalGrid, symbolPool, options)
+    spinGif = await buildSlotsSpinGif(grid, symbolPool, {
+      width: 720,
+      height: 720,
+      frames: 18,
+      msPerFrame: 55
+    });
+  } catch (e) {
+    console.error("Slots spin gif failed:", e?.message || e);
+  }
+
+  let boardPng = null;
+  try {
+    boardPng = await buildSlotsBoardImage(grid, winningLinePaths);
+  } catch (err) {
+    console.error("Slots board image render failed:", err?.message || err);
+  }
+
+  const embed = slotsEmbed(cfg, state, {
+    status,
+    grid: null, // we're using attachment images
+    wins,
+    payout,
+    tier,
+    totalBet
+  });
+
+  // ✅ Step A: show GIF spin
+  if (spinGif) {
+    const gifName = `slots-spin-${Date.now()}.gif`;
+    embed.setImage(`attachment://${gifName}`);
+
+    await interaction.editReply({
+      embeds: [embed],
+      attachments: [], // clear stale image
+      files: [{ attachment: spinGif, name: gifName }],
+      components: slotsReplayButtons(state)
+    });
+
+    // small pause so the spin is visible
+    await new Promise((r) => setTimeout(r, 900));
+  }
+
+  // ✅ Step B: swap to final PNG
+  if (boardPng) {
+    const pngName = `slots-${Date.now()}.png`;
+    embed.setImage(`attachment://${pngName}`);
 
     return interaction.editReply({
       embeds: [embed],
-      attachments: [], // ✅ clears stale image
-      files: boardPng ? [{ attachment: boardPng, name: filename }] : [],
+      attachments: [], // clears the gif attachment
+      files: [{ attachment: boardPng, name: pngName }],
       components: slotsReplayButtons(state)
     });
-  };
+  }
+
+  // fallback if png fails
+  embed.setImage(null);
+  return interaction.editReply({
+    embeds: [embed],
+    attachments: [],
+    files: [],
+    components: slotsReplayButtons(state)
+  });
+};
 
   // -----------------------------
   // Route actions
