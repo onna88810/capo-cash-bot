@@ -2386,24 +2386,30 @@ const spin = async (linesCount, tierId = null) => {
       const row = await getUserRow(guildId, callerId);
 
       const now = nowInTz(tz);
-      const last = row.last_daily_claim_at
-        ? DateTime.fromISO(row.last_daily_claim_at).setZone(tz)
-        : null;
+const last = row.last_daily_claim_at
+  ? DateTime.fromISO(row.last_daily_claim_at).setZone(tz)
+  : null;
 
-      if (last && hoursBetween(last, now) < 24) {
-        const next = last.plus({ hours: 24 });
-        const unix = Math.floor(next.toSeconds());
-        return interaction.editReply(`⏳ Daily cooldown. Try again <t:${unix}:R>`);
-      }
+let streak = Number(row.daily_streak ?? 0);
 
-      const grace = Number(cfg.daily_grace_hours ?? 3);
-      let streak = Number(row.daily_streak ?? 0);
+if (last) {
+  const lastDay = last.startOf("day");
+  const today = now.startOf("day");
+  const dayDiff = Math.floor(today.diff(lastDay, "days").days);
 
-      if (!last) streak = 1;
-      else {
-        const h = hoursBetween(last, now);
-        streak = h <= 24 + grace ? streak + 1 : 1;
-      }
+  // already claimed today
+  if (dayDiff === 0) {
+    const next = today.plus({ days: 1 }); // next midnight in tz
+    const unix = Math.floor(next.toSeconds());
+    return interaction.editReply(`⏳ Daily cooldown. Try again <t:${unix}:R>`);
+  }
+
+  // claimed yesterday -> continue streak
+  if (dayDiff === 1) streak = streak + 1;
+  else streak = 1; // missed 1+ full days
+} else {
+  streak = 1;
+}
 
       const base = Number(cfg.daily_base ?? 20);
       const per = Number(cfg.daily_bonus_per_streak ?? 2);
