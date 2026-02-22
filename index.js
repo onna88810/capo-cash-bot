@@ -806,13 +806,15 @@ const amount =
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import GIFEncoder from "gif-encoder-2";
 
 const SLOT_ICON_DIR = path.resolve(process.cwd(), "assets");
 
 const SYMBOL_TO_ICON_FILE = {
   raccoon: "IMG_0767.png",
   diamond: "IMG_0773.png",
-  briefcase: "IMG_0774.png",
+  briefcase: "IMG_0786.png",
   moneybag: "IMG_0777.png",
 
   // ✅ normal coin icon
@@ -824,12 +826,13 @@ const SYMBOL_TO_ICON_FILE = {
   capo: "IMG_0781.png",
 
   // if you still use this symbol id anywhere, map it too:
-  cashstack: "IMG_0786.png",
+  cashstack: "IMG_0774.png",
 };
 
-const ICON_DATAURI_CACHE = new Map();
+// ---------- DataURI cache (optional; useful if you still embed PNGs into SVG elsewhere)
+const ICON_DATAURI_CACHE = new Map(); // symbolId -> dataUri
 
-async function getSymbolDataUri(symbolId) {
+export async function getSymbolDataUri(symbolId) {
   const cached = ICON_DATAURI_CACHE.get(symbolId);
   if (cached) return cached;
 
@@ -845,9 +848,178 @@ async function getSymbolDataUri(symbolId) {
     ICON_DATAURI_CACHE.set(symbolId, dataUri);
     return dataUri;
   } catch (e) {
-    console.error("Slots icon missing:", symbolId);
+    console.error("Slots icon missing:", symbolId, e?.message || e);
     return null;
   }
+}
+
+// ---------- Loaded Image cache (for canvas/GIF rendering)
+const ICON_IMAGE_CACHE = new Map(); // symbolId -> loaded Image
+
+export async function getSymbolImage(symbolId) {
+  const cached = ICON_IMAGE_CACHE.get(symbolId);
+  if (cached) return cached;
+
+  const file = SYMBOL_TO_ICON_FILE[symbolId];
+  if (!file) return null;
+
+  try {
+    const abs = path.join(SLOT_ICON_DIR, file);
+    const buf = await fs.readFile(abs);
+    const img = await loadImage(buf);
+
+    ICON_IMAGE_CACHE.set(symbolId, img);
+    return img;
+  } catch (e) {
+    console.error("Slots image load failed:", symbolId, e?.message || e);
+    return null;
+  }
+}
+
+/**
+ * Build a "reel spin" GIF that lands on finalGrid.
+ * - Each column scrolls through random symbols then stops.
+ *
+ * finalGrid is 3x3 of symbol IDs: grid[row][col]
+ * symbolPool is array like BASE_SYMBOLS or [...BASE_SYMBOLS, CAPO_SYMBOL] (objects with .id)
+ */
+export async function buildSlotsSpinGif(
+  finalGrid,
+  symbolPool,
+  {
+    width = 720,
+    height = 720,
+    cellSize = 220,     // bigger cells for cleaner icons
+    padding = 30,
+    frames = 18,
+    msPerFrame = 55
+  } = {}
+) {
+  const boardSize = cellSize * 3;
+  const W = width;
+  const H = height;
+
+  // Pre-pick symbol ids for reels (each reel list ends with final column symbols)
+  const poolIds = (symbolPool || []).map((s) => s.id).filter(Boolean);
+  if (poolIds.length === 0) throw new Error("buildSlotsSpinGif: symbolPool is empty");
+
+  const reelList = (col) => {
+    const seq = [];
+    // random feed
+    for (let i = 0; i < 12; i++) {
+      seq.push(poolIds[Math.floor(Math.random() * poolIds.length)]);
+    }
+    // ensure it lands on final (top->mid->bot for this col)
+    seq.push(finalGrid[0][col], finalGrid[1][col], finalGrid[2][col]);
+    return seq;
+  };
+
+  const reels = [reelList(0), reelList(1), reelList(2)];
+
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext("2d");
+
+  const enc = new GIFEncoder(W, H);
+  enc.setRepeat(0);         // loop forever
+  enc.setDelay(msPerFrame); // ms per frame
+  enc.setQuality(10);       // lower = better quality / bigger file
+  enc.start();
+
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+  // icon size inside cell (take up most of the cell)
+  const iconSize = Math.floor(cellSize * 0.86);
+
+  for (let f = 0; f < frames; f++) {
+    const t = easeOutCubic(frames === 1 ? 1 : f / (frames - 1));
+
+    // Background
+    ctx.fillStyle = "#050505";
+    ctx.fillRect(0, 0, W, H);
+
+    // Outer board
+    ctx.fillStyle = "#1a1a1a";
+    ctx.strokeStyle = "#00b36b";
+    ctx.lineWidth = 6;
+    roundRect(ctx, padding, padding, boardSize, boardSize, 28, true, true);
+
+    // Cells + reels
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const x = padding + col * cellSize;
+        const y = padding + row * cellSize;
+
+        // Cell
+        ctx.fillStyle = "#0a0a0a";
+        ctx.strokeStyle = "#1f1f1f";
+        ctx.lineWidth = 3;
+        roundRect(ctx, x, y, cellSize, cellSize, 26, true, true);
+
+        // Reel pick
+        const reel = reels[col];
+
+        // stagger stop feel: col 0 stops first, col 2 last (tighter than before)
+        const maxScrollCells = 12 + col * 3;
+        const scrollCells = Math.floor((1 - t) * maxScrollCells);
+
+        // landing set uses last 3 entries: [top, mid, bot]
+        const indexFromEnd = 3 - row;
+        const landingIndex = reel.length - indexFromEnd;
+        const pickIndex = Math.max(0, landingIndex - scrollCells);
+
+        const symId = reel[pickIndex];
+
+        const img = await getSymbolImage(symId);
+        if (img) {
+          const ix = x + (cellSize - iconSize) / 2;
+          const iy = y + (cellSize - iconSize) / 2;
+
+          // tiny "motion blur" early on
+          if (t < 0.7) {
+            ctx.globalAlpha = 0.18;
+            ctx.drawImage(img, ix, iy - 10, iconSize, iconSize);
+            ctx.globalAlpha = 1;
+          }
+
+          ctx.drawImage(img, ix, iy, iconSize, iconSize);
+        } else {
+          // fallback if missing
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "20px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(symId ?? "?"), x + cellSize / 2, y + cellSize / 2);
+        }
+      }
+    }
+
+    enc.addFrame(ctx);
+  }
+
+  enc.finish();
+  return enc.out.getData(); // Buffer/Uint8Array
+}
+
+// helper for rounded rect (canvas)
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  const radius = typeof r === "number"
+    ? { tl: r, tr: r, br: r, bl: r }
+    : { tl: r.tl ?? 0, tr: r.tr ?? 0, br: r.br ?? 0, bl: r.bl ?? 0 };
+
+  ctx.beginPath();
+  ctx.moveTo(x + radius.tl, y);
+  ctx.lineTo(x + w - radius.tr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius.tr);
+  ctx.lineTo(x + w, y + h - radius.br);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius.br, y + h);
+  ctx.lineTo(x + radius.bl, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius.bl);
+  ctx.lineTo(x, y + radius.tl);
+  ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+  ctx.closePath();
+
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
 }
 
 // ==============================
