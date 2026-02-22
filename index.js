@@ -813,10 +813,17 @@ const SYMBOL_TO_ICON_FILE = {
   diamond: "IMG_0773.png",
   briefcase: "IMG_0774.png",
   moneybag: "IMG_0777.png",
-  cashstack: "IMG_0780.png",
-  coin: "IMG_0781.png",
+
+  // ✅ normal coin icon
+  coin: "IMG_0780.png",
+
   dice: "IMG_0783.png",
-  capo: "IMG_0786.png",
+
+  // ✅ jackpot-only capo symbol
+  capo: "IMG_0781.png",
+
+  // if you still use this symbol id anywhere, map it too:
+  cashstack: "IMG_0786.png",
 };
 
 const ICON_DATAURI_CACHE = new Map();
@@ -847,7 +854,7 @@ async function getSymbolDataUri(symbolId) {
 // ==============================
 
 async function buildSlotsBoardImage(grid, winningLines = []) {
-  const cellSize = 150;
+  const cellSize = 190;
   const padding = 40;
   const boardSize = cellSize * 3;
   const width = boardSize + padding * 2;
@@ -878,7 +885,7 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
       const dataUri = await getSymbolDataUri(symbolId);
 
       if (dataUri) {
-        const size = 92;
+        const size = 145;
         const ix = x + (cellSize - size) / 2;
         const iy = y + (cellSize - size) / 2;
 
@@ -920,7 +927,7 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
 
   svg += `</svg>`;
 
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 600 } });
+  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1100 } });
   const pngData = resvg.render();
   return pngData.asPng();
 }
@@ -1776,8 +1783,8 @@ if (interaction.isButton() && interaction.customId.startsWith("sl:")) {
     }
 
     // CAPO symbol only on MAX BET tier
-    const isMaxTier = tier.id === "max50";
-    const symbolPool = isMaxTier
+   const isJackpotTier = tier.id === "all10" || tier.id === "max50";
+const symbolPool = isJackpotTier
   ? [...BASE_SYMBOLS, CAPO_SYMBOL]
   : BASE_SYMBOLS;
 
