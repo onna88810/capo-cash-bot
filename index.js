@@ -2084,31 +2084,29 @@ const spin = async (linesCount, tierId = null) => {
     await new Promise((r) => setTimeout(r, 1200));
   }
 
-  // ✅ Step B: swap to final PNG
+// ✅ Step B: swap to final PNG (await the promise we started earlier)
+const boardPng = await pngPromise;
+
 if (boardPng) {
-  try {
-    const pngName = `slots-${Date.now()}.png`;
-    embed.setImage(`attachment://${pngName}`);
+  const pngName = `slots-${Date.now()}.png`;
+  embed.setImage(`attachment://${pngName}`);
 
-    return await interaction.editReply({
-      embeds: [embed],
-      attachments: [], // clears the gif attachment
-      files: [{ attachment: boardPng, name: pngName }],
-      components: slotsReplayButtons(state)
-    });
-  } catch (e) {
-    console.error("Slots PNG swap failed:", e?.message || e);
-}
-  }
-
-  // fallback if png fails
-  embed.setImage(null);
   return interaction.editReply({
     embeds: [embed],
     attachments: [],
-    files: [],
+    files: [{ attachment: boardPng, name: pngName }],
     components: slotsReplayButtons(state)
   });
+}
+
+// fallback if png fails
+embed.setImage(null);
+return interaction.editReply({
+  embeds: [embed],
+  attachments: [],
+  files: [],
+  components: slotsReplayButtons(state)
+});
 };
 
 // -----------------------------
