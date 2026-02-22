@@ -1085,21 +1085,26 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
     }
   }
 
-  // Draw winning lines
-  winningLines.forEach((line) => {
-    const start = line[0];
-    const end = line[2];
+// Draw winning lines (polyline through all 3 points)
+winningLines.forEach((line) => {
+  const points = line
+    .map(([r, c]) => {
+      const x = padding + c * cellSize + cellSize / 2;
+      const y = padding + r * cellSize + cellSize / 2;
+      return `${x},${y}`;
+    })
+    .join(" ");
 
-    const x1 = padding + start[1] * cellSize + cellSize / 2;
-    const y1 = padding + start[0] * cellSize + cellSize / 2;
-    const x2 = padding + end[1] * cellSize + cellSize / 2;
-    const y2 = padding + end[0] * cellSize + cellSize / 2;
-
-    svg += `
-      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
-        stroke="#ff0033" stroke-width="12" stroke-linecap="round" opacity="0.85"/>
-    `;
-  });
+  svg += `
+    <polyline points="${points}"
+      fill="none"
+      stroke="#ff0033"
+      stroke-width="12"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.85"/>
+  `;
+});
 
   svg += `</svg>`;
 
