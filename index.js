@@ -920,7 +920,7 @@ export async function buildSlotsSpinGif(
   const ctx = canvas.getContext("2d");
 
   const enc = new GIFEncoder(W, H);
-  enc.setRepeat(0);         // loop forever
+  enc.setRepeat(-1); // ✅ play once (no loop)
   enc.setDelay(msPerFrame); // ms per frame
   enc.setQuality(10);       // lower = better quality / bigger file
   enc.start();
@@ -2076,19 +2076,21 @@ const spin = async (linesCount, tierId = null) => {
     await new Promise((r) => setTimeout(r, 1200));
   }
 
-  // ✅ Step B: await PNG (already rendering) and swap to final PNG
-  const boardPng = await pngPromise;
-
-  if (boardPng) {
+  // ✅ Step B: swap to final PNG
+if (boardPng) {
+  try {
     const pngName = `slots-${Date.now()}.png`;
     embed.setImage(`attachment://${pngName}`);
 
-    return interaction.editReply({
+    return await interaction.editReply({
       embeds: [embed],
       attachments: [], // clears the gif attachment
       files: [{ attachment: boardPng, name: pngName }],
       components: slotsReplayButtons(state)
     });
+  } catch (e) {
+    console.error("Slots PNG swap failed:", e?.message || e);
+}
   }
 
   // fallback if png fails
