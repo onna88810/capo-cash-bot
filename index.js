@@ -101,16 +101,16 @@ const SLOT_PAYLINES = [
   [[1,0],[1,1],[1,2]],
   // 3) Bottom row
   [[2,0],[2,1],[2,2]],
-  // 4) Diagonal TL -> BR
+  // 4) Left column
+  [[0,0],[1,0],[2,0]],
+  // 5) Middle column
+  [[0,1],[1,1],[2,1]],
+  // 6) Right column
+  [[0,2],[1,2],[2,2]],
+  // 7) Diagonal TL -> BR
   [[0,0],[1,1],[2,2]],
-  // 5) Diagonal BL -> TR
-  [[2,0],[1,1],[0,2]],
-  // 6) "V" (top corners, bottom middle)
-  [[0,0],[2,1],[0,2]],
-  // 7) Inverted "V" (bottom corners, top middle)
-  [[2,0],[0,1],[2,2]],
-  // 8) "Arch" (top corners, center middle)
-  [[0,0],[1,1],[0,2]],
+  // 8) Diagonal TR -> BL
+  [[0,2],[1,1],[2,0]],
 ];
 
 // ============================================
