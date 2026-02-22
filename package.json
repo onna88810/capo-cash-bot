@@ -16,5 +16,9 @@
     "luxon": "^3.5.0",
     "node-cron": "^3.0.3",
     "@resvg/resvg-js": "^2.6.2"
-  }
+  },
+  "dependencies": {
+  "@napi-rs/canvas": "^0.1.60",
+  "gif-encoder-2": "^1.0.5"
+}
 }
