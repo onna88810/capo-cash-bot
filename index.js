@@ -885,7 +885,7 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
       const dataUri = await getSymbolDataUri(symbolId);
 
       if (dataUri) {
-        const size = 145;
+        const size = 175;
         const ix = x + (cellSize - size) / 2;
         const iy = y + (cellSize - size) / 2;
 
@@ -927,7 +927,7 @@ async function buildSlotsBoardImage(grid, winningLines = []) {
 
   svg += `</svg>`;
 
-  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1100 } });
+  const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1300 } });
   const pngData = resvg.render();
   return pngData.asPng();
 }
