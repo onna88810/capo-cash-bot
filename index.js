@@ -15,6 +15,11 @@ import {
   TextInputStyle,
   InteractionType
 } from "discord.js";
+
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import GIFEncoder from "gif-encoder-2";
 // Roles that get muted when /lock is used
 const LOCK_ROLE_IDS = [
   "1457168952936501248",
