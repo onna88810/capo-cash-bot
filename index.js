@@ -809,9 +809,6 @@ const amount =
 // 🎰 SLOT IMAGE HELPERS
 // ==============================
 
-import { createCanvas, loadImage } from "@napi-rs/canvas";
-import GIFEncoder from "gif-encoder-2";
-
 const SLOT_ICON_DIR = path.resolve(process.cwd(), "assets");
 
 const SYMBOL_TO_ICON_FILE = {
