@@ -118,7 +118,8 @@ const BASE_SYMBOLS = [
   { id: "moneybag", weight: 8 },
   { id: "cashstack", weight: 10 },
   { id: "coin", weight: 14 },
-  { id: "dice", weight: 16 }
+  { id: "dice", weight: 16 },
+  { id: "raccoon", weight: 12 }, // ✅ add normal symbol
 ];
 
 const CAPO_SYMBOL = { id: "capo", weight: 1 }; // jackpot only
