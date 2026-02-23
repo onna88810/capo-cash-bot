@@ -93,6 +93,37 @@ const SLOT_TIERS = {
   }
 };
 
+const SLOT_PAYTABLE = {
+  single: {       // 5/line bet tier
+    coin: 10,
+    dice: 10,
+    raccoon: 12,
+    cashstack: 14,
+    moneybag: 16,
+    briefcase: 18,
+    diamond: 22
+  },
+  all10: {        // 10/line bet tier
+    coin: 18,
+    dice: 18,
+    raccoon: 22,
+    cashstack: 28,
+    moneybag: 34,
+    briefcase: 40,
+    diamond: 55
+  },
+  max50: {        // 50/line bet tier
+    coin: 80,
+    dice: 80,
+    raccoon: 95,
+    cashstack: 120,
+    moneybag: 150,
+    briefcase: 190,
+    diamond: 260,
+    capo: 0 // keep CAPO payout handled ONLY by jackpot logic (recommended)
+  }
+};
+
 // 3x3 grid indices: [row][col] where row 0=top, 1=mid, 2=bot; col 0..2
 const SLOT_PAYLINES = [
   // 1) Top row
@@ -1854,8 +1885,10 @@ const grid = slotsBuildGrid(symbolPool);
 
   const { wins } = slotsEval(grid, lines);
 
-  let payout = wins.length * tier.winPerLine;
-  let jackpotHit = false; // single tier won't ever jackpot, but keeping consistent
+  let payout = wins.reduce((sum, w) => {
+  const table = SLOT_PAYTABLE[tier.id] || {};
+  return sum + Number(table[w.sym] ?? 0);
+}, 0);
 
   // (this will never run for single, but harmless)
   if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
@@ -2039,8 +2072,10 @@ const spin = async (linesCount, tierId = null) => {
     const grid = slotsBuildGrid(symbolPool);
     const { wins } = slotsEval(grid, linesCount);
 
-    let payout = wins.length * tier.winPerLine;
-    let jackpotHit = false;
+   let payout = wins.reduce((sum, w) => {
+  const table = SLOT_PAYTABLE[tier.id] || {};
+  return sum + Number(table[w.sym] ?? 0);
+}, 0);
 
     if (linesCount === 8 && wins.length === 8 && tier.jackpot) {
       if (Math.random() < tier.jackpot.chance) {
