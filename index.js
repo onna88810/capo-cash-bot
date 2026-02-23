@@ -1890,6 +1890,7 @@ const grid = slotsBuildGrid(symbolPool);
   return sum + Number(table[w.sym] ?? 0);
 }, 0);
 
+let jackpotHit = false;
   // (this will never run for single, but harmless)
   if (tier.lines === 8 && wins.length === 8 && tier.jackpot) {
     if (Math.random() < tier.jackpot.chance) {
@@ -2077,6 +2078,7 @@ const spin = async (linesCount, tierId = null) => {
   return sum + Number(table[w.sym] ?? 0);
 }, 0);
 
+let jackpotHit = false;
     if (linesCount === 8 && wins.length === 8 && tier.jackpot) {
       if (Math.random() < tier.jackpot.chance) {
         payout = tier.jackpot.amount;
