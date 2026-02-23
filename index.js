@@ -808,6 +808,64 @@ const amount =
   }
 });
 
+// ===== AUTO-DELETE SPECIFIC INVITE (TARGETED BOT + EMBEDS/COMPONENTS) =====
+const BLOCKED_INVITE_CODE = "2EusmmaqvY";
+const BLOCKED_BOT_ID = "1279816474441289870";
+
+const INVITE_RE = new RegExp(
+  String.raw`(?:https?:\/\/)?(?:discord\.gg|discord\.com\/invite)\/${BLOCKED_INVITE_CODE}`,
+  "i"
+);
+
+function embedContainsInvite(embed) {
+  if (!embed) return false;
+
+  const parts = [];
+  if (embed.title) parts.push(embed.title);
+  if (embed.description) parts.push(embed.description);
+  if (embed.url) parts.push(embed.url);
+  if (embed.footer?.text) parts.push(embed.footer.text);
+  if (embed.author?.name) parts.push(embed.author.name);
+  if (embed.author?.url) parts.push(embed.author.url);
+
+  if (Array.isArray(embed.fields)) {
+    for (const f of embed.fields) {
+      if (f?.name) parts.push(f.name);
+      if (f?.value) parts.push(f.value);
+    }
+  }
+
+  return INVITE_RE.test(parts.join("\n"));
+}
+
+function componentsContainInvite(message) {
+  return (message.components || []).some(row =>
+    (row.components || []).some(comp =>
+      comp?.url && INVITE_RE.test(comp.url)
+    )
+  );
+}
+
+client.on("messageCreate", async (message) => {
+  try {
+    if (!message.guild) return;
+
+    // ✅ only delete when THAT bot posts it
+    if (message.author?.id !== BLOCKED_BOT_ID) return;
+
+    const contentHit = INVITE_RE.test(message.content || "");
+    const embedHit = (message.embeds || []).some(embedContainsInvite);
+    const componentHit = componentsContainInvite(message);
+
+    if (contentHit || embedHit || componentHit) {
+      await message.delete().catch(() => {});
+      console.log("Deleted blocked invite embed/message.");
+    }
+  } catch (err) {
+    console.error("Auto-delete error:", err?.message || err);
+  }
+});
+
 // ==============================
 // 🎰 SLOT IMAGE HELPERS
 // ==============================
