@@ -159,6 +159,13 @@ const BASE_SYMBOLS = [
 ];
 
 const CAPO_SYMBOL = { id: "capo", weight: 1 }; // jackpot only
+// ✅ Single Lines should hit more often: smaller pool (more 3-of-a-kind)
+const SINGLE_SYMBOLS = [
+  { id: "diamond", weight: 25 },
+  { id: "dice",    weight: 25 },
+  { id: "raccoon", weight: 25 },
+  { id: "coin",    weight: 25 },
+];
 
 function slotsKey(guildId, channelId, userId) {
   return `slots_${guildId}_${channelId}_${userId}`;
@@ -1880,7 +1887,7 @@ if (
   }
 
   // Single tier = no CAPO symbol
-const symbolPool = BASE_SYMBOLS; // uses your weighted id symbols
+const symbolPool = SINGLE_SYMBOLS;
 const grid = slotsBuildGrid(symbolPool);
 
   const { wins } = slotsEval(grid, lines);
@@ -2066,9 +2073,12 @@ const spin = async (linesCount, tierId = null) => {
       });
     }
 
-    // CAPO symbol only on MAX BET tier
-    const isMaxTier = tier.id === "max50";
-    const symbolPool = isMaxTier ? [...BASE_SYMBOLS, CAPO_SYMBOL] : BASE_SYMBOLS;
+    const symbolPool =
+  tier.id === "single"
+    ? SINGLE_SYMBOLS
+    : tier.id === "max50"
+      ? [...BASE_SYMBOLS, CAPO_SYMBOL]
+      : BASE_SYMBOLS;
 
     const grid = slotsBuildGrid(symbolPool);
     const { wins } = slotsEval(grid, linesCount);
