@@ -137,7 +137,21 @@ new SlashCommandBuilder()
               .setDescription("New payout amount")
               .setRequired(true)
               .setMinValue(1)
-          )
+          ),
+          
+          // PRIVATE (Ghosty Gambling)
+new SlashCommandBuilder()
+  .setName("private")
+  .setDescription("Private room tools")
+  .addSubcommandGroup(group =>
+    group
+      .setName("ghosty")
+      .setDescription("Ghosty private rooms")
+      .addSubcommand(sub =>
+        sub
+          .setName("gambling")
+          .setDescription("Create the Ghosty private gambling hub panel")
       )
   ),
+  
 ].map((c) => c.toJSON());
