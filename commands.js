@@ -116,42 +116,42 @@ new SlashCommandBuilder()
   .setDescription("Unlock the current channel (restore Send Messages for configured roles)"
     ),
   
-  // RUMBLE (admin)
-new SlashCommandBuilder()
-  .setName("rumble")
-  .setDescription("Rumble settings (admin)")
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+    // RUMBLE (admin)
+  new SlashCommandBuilder()
+    .setName("rumble")
+    .setDescription("Rumble settings (admin)")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+    .addSubcommandGroup(group =>
+      group
+        .setName("payout")
+        .setDescription("Rumble payout settings")
+        .addSubcommand(sub =>
+          sub
+            .setName("amount")
+            .setDescription("Set payout for this channel")
+            .addIntegerOption(opt =>
+              opt
+                .setName("amount")
+                .setDescription("New payout amount")
+                .setRequired(true)
+                .setMinValue(1)
+            )
+        )
+    ),
 
-  .addSubcommandGroup(group =>
-    group
-      .setName("payout")
-      .setDescription("Rumble payout settings")
-
-      .addSubcommand(sub =>
-        sub
-          .setName("amount")
-          .setDescription("Set payout for this channel")
-          .addIntegerOption(opt =>
-            opt
-              .setName("amount")
-              .setDescription("New payout amount")
-              .setRequired(true)
-              .setMinValue(1)
-          ),
-          
-          // PRIVATE (Ghosty Gambling)
-new SlashCommandBuilder()
-  .setName("private")
-  .setDescription("Private room tools")
-  .addSubcommandGroup(group =>
-    group
-      .setName("ghosty")
-      .setDescription("Ghosty private rooms")
-      .addSubcommand(sub =>
-        sub
-          .setName("gambling")
-          .setDescription("Create the Ghosty private gambling hub panel")
-      )
-  ),
+  // PRIVATE (Ghosty Gambling)
+  new SlashCommandBuilder()
+    .setName("private")
+    .setDescription("Private room tools")
+    .addSubcommandGroup(group =>
+      group
+        .setName("ghosty")
+        .setDescription("Ghosty private rooms")
+        .addSubcommand(sub =>
+          sub
+            .setName("gambling")
+            .setDescription("Create the Ghosty private gambling hub panel")
+        )
+    ),
   
 ].map((c) => c.toJSON());
