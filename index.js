@@ -1565,12 +1565,6 @@ await supabase
 // (optional) pin it
 await controlMsg.pin().catch(() => {});
 
-// ✅ save message id so we can edit it later
-await supabase
-  .from("private_rooms")
-  .update({ control_message_id: panelMsg.id })
-  .eq("channel_id", created.id);
-
   // 4) confirm
   return interaction.editReply(`✅ Room created: <#${created.id}>`);
 }
