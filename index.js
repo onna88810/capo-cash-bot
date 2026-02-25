@@ -2928,10 +2928,6 @@ if (recent) {
 await clearSticky(guildId, channelId);
 return interaction.editReply("✅ Sticky removed.");
 
-    const guildId = interaction.guild.id;
-    const callerId = interaction.user.id;
-    const cfg = await getConfig(guildId);
-    const tz = cfg?.timezone || "America/Chicago";
 
 // ---------- /private ghosty gambling ----------
 if (interaction.commandName === "private") {
