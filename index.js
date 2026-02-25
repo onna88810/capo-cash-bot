@@ -1307,7 +1307,8 @@ if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
 
   const created = await interaction.guild.channels.create({
     name: channelName,
-    parentId: PRIVATE_GHOSTY_CATEGORY_ID,
+    parent: PRIVATE_GHOSTY_CATEGORY_ID,
+    type: ChannelType.GuildText,
     reason: `Ghosty private room for ${interaction.user.tag}`,
     permissionOverwrites: [
       // deny everyone
@@ -1350,6 +1351,8 @@ if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
     ]
   });
 
+await created.setParent(PRIVATE_GHOSTY_CATEGORY_ID, { lockPermissions: false });
+  .catch(err => console.error("setParent failed:", err));
   // 3) insert DB row
   await insertPrivateRoom({
     channel_id: created.id,
