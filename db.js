@@ -115,19 +115,24 @@ export async function insertPrivateRoom({ channel_id, guild_id, owner_id, hub_ty
 }
 
 export async function touchPrivateRoom(channelId) {
-  const { error } = await supabase
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
     .from("private_rooms")
-    .update({ last_activity_at: new Date().toISOString() })
+    .update({ last_activity_at: now })
     .eq("channel_id", channelId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .select("channel_id, guild_id, owner_id, last_activity_at, control_message_id")
+    .maybeSingle();
 
   if (error) throw error;
+  return data || null;
 }
 
 export async function getExpiredPrivateRooms(cutoffIso) {
   const { data, error } = await supabase
     .from("private_rooms")
-    .select("channel_id,guild_id")
+    .select("channel_id, guild_id")
     .is("deleted_at", null)
     .lt("last_activity_at", cutoffIso)
     .limit(200);
@@ -143,18 +148,4 @@ export async function markPrivateRoomDeleted(channelId) {
     .eq("channel_id", channelId);
 
   if (error) throw error;
-}
-export async function touchPrivateRoom(channelId) {
-  const now = new Date().toISOString();
-
-  const { data, error } = await supabase
-    .from("private_rooms")
-    .update({ last_activity_at: now })
-    .eq("channel_id", channelId)
-    .eq("deleted", false)
-    .select("channel_id, owner_id, last_activity_at, control_message_id")
-    .single();
-
-  if (error) return null;
-  return data;
 }
