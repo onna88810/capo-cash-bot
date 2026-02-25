@@ -1476,7 +1476,7 @@ const controlEmbed = new EmbedBuilder()
   .setFooter({ text: `Room Owner: ${interaction.user.username}` })
   .setTimestamp();
 
-const controlEmbed = buildPrivateRoomControlsEmbed({
+const updatedEmbed = buildPrivateRoomControlsEmbed({
   ownerId: userId,
   lastActivityIso: new Date().toISOString()
 });
