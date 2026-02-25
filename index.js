@@ -1418,8 +1418,22 @@ const manageRow = new ActionRowBuilder().addComponents(
     .setStyle(ButtonStyle.Danger)
 );
 
+const controlEmbed = new EmbedBuilder()
+  .setTitle("👻 Ghosty Private Room")
+  .setDescription(
+    "### 🎛 Room Controls\n" +
+    "Use the buttons below to manage access to your private gambling room.\n\n" +
+    "• Add trusted players\n" +
+    "• Remove unwanted users\n" +
+    "• Activity resets the 3-day timer"
+  )
+  .setColor(0x6a0dad)
+  .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+  .setFooter({ text: `Room Owner: ${interaction.user.username}` })
+  .setTimestamp();
+
 await created.send({
-  content: "👻 **Private Room Controls**\nUse these to add/remove someone from your room.",
+  embeds: [controlEmbed],
   components: [manageRow]
 });
 
