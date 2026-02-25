@@ -1432,10 +1432,19 @@ const controlEmbed = new EmbedBuilder()
   .setFooter({ text: `Room Owner: ${interaction.user.username}` })
   .setTimestamp();
 
-await created.send({
-  embeds: [controlEmbed],
+const panelMsg = await created.send({
+  embeds: [controlEmbed],          // (your nice embed)
   components: [manageRow]
 });
+
+// (optional) pin it
+await panelMsg.pin().catch(() => {});
+
+// ✅ save message id so we can edit it later
+await supabase
+  .from("private_rooms")
+  .update({ control_message_id: panelMsg.id })
+  .eq("channel_id", created.id);
 
   // 4) confirm
   return interaction.editReply(`✅ Room created: <#${created.id}>`);
