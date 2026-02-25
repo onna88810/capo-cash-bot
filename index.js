@@ -2927,6 +2927,7 @@ if (recent) {
 
 await clearSticky(guildId, channelId);
 return interaction.editReply("✅ Sticky removed.");
+}
 
 
 // ---------- /private ghosty gambling ----------
