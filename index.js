@@ -44,6 +44,7 @@ const PRV_ADD_BTN = "pr:ghosty:add";
 const PRV_REMOVE_BTN = "pr:ghosty:remove";
 const PRV_ADD_MODAL = "pr:ghosty:add_modal";
 const PRV_REMOVE_MODAL = "pr:ghosty:remove_modal";
+const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
 
 // Guest perms (same as owner EXCEPT ManageChannels)
 const PRV_GUEST_ALLOW = [
