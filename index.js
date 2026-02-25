@@ -64,6 +64,25 @@ function parseUserIdInput(str = "") {
   const m = String(str).match(/(\d{17,20})/);
   return m ? m[1] : null;
 }
+async function resolveUserIdFromInput(guild, raw) {
+  const str = String(raw || "").trim();
+
+  // 1) Mention or raw ID
+  const id = parseUserIdInput(str);
+  if (id) return id;
+
+  // 2) Plain username typed in modal (like @Madame or Madame)
+  const q = str.replace(/^@+/, "").trim();
+  if (!q) return null;
+
+  try {
+    const found = await guild.members.fetch({ query: q, limit: 1 });
+    const member = found?.first();
+    return member?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
@@ -1456,7 +1475,7 @@ if (!existing || String(existing.channel_id) !== String(channelId)) {
 }
 
   const raw = interaction.fields.getTextInputValue("pr_user") || "";
-  const targetId = parseUserIdInput(raw);
+  const targetId = await resolveUserIdFromInput(interaction.guild, raw);
 
   if (!targetId) {
     return interaction.reply({ content: "⚠️ I couldn’t read that user. Paste an @mention or a user ID.", ephemeral: true });
