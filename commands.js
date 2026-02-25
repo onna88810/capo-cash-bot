@@ -1,17 +1,17 @@
 import { SlashCommandBuilder, PermissionsBitField } from "discord.js";
 
 export const COMMANDS = [
-// BALANCE
-new SlashCommandBuilder()
-  .setName("balance")
-  .setDescription("Check your balance (or someone else's)")
-  .addUserOption(opt =>
-    opt
-      .setName("user")
-      .setDescription("User to check (optional)")
-      .setRequired(false)
-  ),
-  
+  // BALANCE
+  new SlashCommandBuilder()
+    .setName("balance")
+    .setDescription("Check your balance (or someone else's)")
+    .addUserOption((opt) =>
+      opt
+        .setName("user")
+        .setDescription("User to check (optional)")
+        .setRequired(false)
+    ),
+
   // DAILY
   new SlashCommandBuilder()
     .setName("daily")
@@ -23,40 +23,44 @@ new SlashCommandBuilder()
     .setDescription("Claim your weekly Capo Cash"),
 
   // GIVE
-new SlashCommandBuilder()
-  .setName("give")
-  .setDescription("Give currency")
-  .addSubcommand(sub =>
-    sub
-      .setName("currency")
-      .setDescription("Give Capo Cash")
-      .addUserOption(o =>
-        o.setName("user")
-          .setDescription("User to give currency to")
-          .setRequired(true)
-      )
-      .addIntegerOption(o =>
-        o.setName("amount")
-          .setDescription("Amount to give")
-          .setRequired(true)
-      )
-  ),
+  new SlashCommandBuilder()
+    .setName("give")
+    .setDescription("Give currency")
+    .addSubcommand((sub) =>
+      sub
+        .setName("currency")
+        .setDescription("Give Capo Cash")
+        .addUserOption((o) =>
+          o
+            .setName("user")
+            .setDescription("User to give currency to")
+            .setRequired(true)
+        )
+        .addIntegerOption((o) =>
+          o
+            .setName("amount")
+            .setDescription("Amount to give")
+            .setRequired(true)
+        )
+    ),
 
-// REMOVE
-new SlashCommandBuilder()
-  .setName("remove")
-  .setDescription("Remove Capo Cash from a user")
-  .addUserOption((o) =>
-    o.setName("user")
-      .setDescription("User to remove currency from")
-      .setRequired(true)
-  )
-  .addIntegerOption((o) =>
-    o.setName("amount")
-      .setDescription("Amount to remove")
-      .setRequired(true)
-  ),
-  
+  // REMOVE
+  new SlashCommandBuilder()
+    .setName("remove")
+    .setDescription("Remove Capo Cash from a user")
+    .addUserOption((o) =>
+      o
+        .setName("user")
+        .setDescription("User to remove currency from")
+        .setRequired(true)
+    )
+    .addIntegerOption((o) =>
+      o
+        .setName("amount")
+        .setDescription("Amount to remove")
+        .setRequired(true)
+    ),
+
   // LEADERBOARD
   new SlashCommandBuilder()
     .setName("leaderboard")
@@ -92,9 +96,9 @@ new SlashCommandBuilder()
     ),
 
   // SLOTS
-new SlashCommandBuilder()
-  .setName("slots")
-  .setDescription("Spin the slots"),
+  new SlashCommandBuilder()
+    .setName("slots")
+    .setDescription("Spin the slots"),
 
   // BLACKJACK
   new SlashCommandBuilder()
@@ -105,79 +109,72 @@ new SlashCommandBuilder()
     ),
 
   // LOCK
-new SlashCommandBuilder()
-  .setName("lock")
-  .setDescription("Lock the current channel (remove Send Messages for configured roles)"
-    ),
-  
-// UNLOCK
-new SlashCommandBuilder()
-  .setName("unlock")
-  .setDescription("Unlock the current channel (restore Send Messages for configured roles)"
-    ),
-  
-  // STICKY
-{
-  name: "stick",
-  description: "Post a sticky message in this channel",
-  options: [
-    {
-      name: "message",
-      description: "The message to keep pinned at the bottom",
-      type: 3, // STRING
-      required: true
-    }
-  ]
-},
-{
-  name: "stickembed",
-  description: "Post a sticky embed in this channel",
-  options: [
-    {
-      name: "title",
-      description: "Embed title",
-      type: 3,
-      required: true
-    },
-    {
-      name: "message",
-      description: "Embed description",
-      type: 3,
-      required: true
-    }
-  ]
-},
-{
-  name: "editsticky",
-  description: "Edit the sticky in this channel",
-  options: [
-    {
-      name: "message",
-      description: "New sticky message",
-      type: 3,
-      required: true
-    }
-  ]
-},
-{
-  name: "unstick",
-  description: "Remove the sticky from this channel"
-}
+  new SlashCommandBuilder()
+    .setName("lock")
+    .setDescription("Lock the current channel (remove Send Messages for configured roles)"),
 
-    // RUMBLE (admin)
+  // UNLOCK
+  new SlashCommandBuilder()
+    .setName("unlock")
+    .setDescription("Unlock the current channel (restore Send Messages for configured roles)"),
+
+  // =========================
+  // STICKY COMMANDS (FIXED)
+  // =========================
+  new SlashCommandBuilder()
+    .setName("stick")
+    .setDescription("Post a sticky message in this channel")
+    .addStringOption((o) =>
+      o
+        .setName("message")
+        .setDescription("The message to keep pinned at the bottom")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("stickembed")
+    .setDescription("Post a sticky embed in this channel")
+    .addStringOption((o) =>
+      o
+        .setName("title")
+        .setDescription("Embed title")
+        .setRequired(true)
+    )
+    .addStringOption((o) =>
+      o
+        .setName("message")
+        .setDescription("Embed description")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("editsticky")
+    .setDescription("Edit the sticky in this channel")
+    .addStringOption((o) =>
+      o
+        .setName("message")
+        .setDescription("New sticky message")
+        .setRequired(true)
+    ),
+
+  new SlashCommandBuilder()
+    .setName("unstick")
+    .setDescription("Remove the sticky from this channel"),
+
+  // RUMBLE (admin)
   new SlashCommandBuilder()
     .setName("rumble")
     .setDescription("Rumble settings (admin)")
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-    .addSubcommandGroup(group =>
+    .addSubcommandGroup((group) =>
       group
         .setName("payout")
         .setDescription("Rumble payout settings")
-        .addSubcommand(sub =>
+        .addSubcommand((sub) =>
           sub
             .setName("amount")
             .setDescription("Set payout for this channel")
-            .addIntegerOption(opt =>
+            .addIntegerOption((opt) =>
               opt
                 .setName("amount")
                 .setDescription("New payout amount")
@@ -191,15 +188,14 @@ new SlashCommandBuilder()
   new SlashCommandBuilder()
     .setName("private")
     .setDescription("Private room tools")
-    .addSubcommandGroup(group =>
+    .addSubcommandGroup((group) =>
       group
         .setName("ghosty")
         .setDescription("Ghosty private rooms")
-        .addSubcommand(sub =>
+        .addSubcommand((sub) =>
           sub
             .setName("gambling")
             .setDescription("Create the Ghosty private gambling hub panel")
         )
     ),
-  
 ].map((c) => c.toJSON());
