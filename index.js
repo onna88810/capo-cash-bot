@@ -638,7 +638,7 @@ async function findUserRankByScan(guildId, userId, pageSize = 1000, maxPages = 5
   return null;
 }
 
-function buildLeaderboardEmbed({ guildName, currencyName, page, totalPages, rows }) {
+function buildLeaderboardEmbed({ guildName, currencyName, page, totalPages, rows, requesterId }) {
   const embed = new EmbedBuilder()
     .setTitle(`📊 ${currencyName} Leaderboard`)
     .setDescription(`**${guildName}**\nPage **${page} / ${totalPages}**`)
@@ -650,7 +650,10 @@ function buildLeaderboardEmbed({ guildName, currencyName, page, totalPages, rows
   }
 
   const lines = rows
-    .map((r) => `**${r.rank}.** <@${r.user_id}> — **${fmt(r.balance)}** ${currencyName}`)
+    .map((r) => {
+      const pin = requesterId && String(r.user_id) === String(requesterId) ? " 📌" : "";
+      return `**${r.rank}.** <@${r.user_id}>${pin} — **${fmt(r.balance)}** ${currencyName}`;
+    })
     .join("\n");
 
   embed.addFields({ name: "Top Players", value: lines });
@@ -1622,13 +1625,13 @@ if (!existing || String(existing.channel_id) !== String(channelId)) {
       const pageData = await fetchLeaderboardPage(guildId, targetPage, LB_PAGE_SIZE);
 
       const embed = buildLeaderboardEmbed({
-        guildName,
-        currencyName,
-        page: pageData.page,
-        totalPages: pageData.totalPages,
-        rows: pageData.rows,
-        pageSize: pageData.pageSize
-      });
+  guildName: interaction.guild?.name || "Server",
+  currencyName: cfg.currency_name || "Capo Cash",
+  page: pageData.page,
+  totalPages: pageData.totalPages,
+  rows: pageData.rows,
+  requesterId: callerId
+});
 
       return interaction.editReply({
         embeds: [embed],
@@ -3160,14 +3163,14 @@ if (last) {
 
       const pageData = await fetchLeaderboardPage(guildId, page, LB_PAGE_SIZE);
 
-      const embed = buildLeaderboardEmbed({
-        guildName: interaction.guild?.name || "Server",
-        currencyName: cfg.currency_name || "Capo Cash",
-        page: pageData.page,
-        totalPages: pageData.totalPages,
-        rows: pageData.rows,
-        pageSize: pageData.pageSize
-      });
+     const embed = buildLeaderboardEmbed({
+  guildName: interaction.guild?.name || "Server",
+  currencyName: cfg.currency_name || "Capo Cash",
+  page: pageData.page,
+  totalPages: pageData.totalPages,
+  rows: pageData.rows,
+  requesterId: callerId
+});
 
       return interaction.editReply({
         embeds: [embed],
