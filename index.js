@@ -36,6 +36,10 @@ const LOCK_CHANNEL_ID = "1469891401314603018";
 const GHOSTY_PRIVATE_HUB_CHANNEL_ID = "1462504562995892376";
 const PRIVATE_ROOM_PARENT_CATEGORY_ID = "1301576482644295731";
 const PRIVATE_ROOM_IDLE_DAYS = 3;
+const PRIVATE_ROOM_TTL_MS = PRIVATE_ROOM_IDLE_DAYS * 24 * 60 * 60 * 1000;
+const PRV_CREATE_BTN = "pr:ghosty_gambling:create";
+const PRIVATE_HUB_TYPE = "ghosty_gambling";
+const PRIVATE_GHOSTY_CATEGORY_ID = PRIVATE_ROOM_PARENT_CATEGORY_ID;
 
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
@@ -793,6 +797,35 @@ client.once("ready", async () => {
   console.log("👻 Ghosty role pings scheduled.");
 });
 
+// ===== PRIVATE ROOMS CLEANUP (every hour) =====
+cron.schedule("0 * * * *", async () => {
+  try {
+    const cutoff = new Date(Date.now() - PRIVATE_ROOM_TTL_MS).toISOString();
+    const expired = await getExpiredPrivateRooms(cutoff);
+
+    for (const r of expired) {
+      const guild = await client.guilds.fetch(r.guild_id).catch(() => null);
+      if (!guild) {
+        await markPrivateRoomDeleted(r.channel_id);
+        continue;
+      }
+
+      const ch = await guild.channels.fetch(r.channel_id).catch(() => null);
+
+      // If already gone, just mark deleted
+      if (!ch) {
+        await markPrivateRoomDeleted(r.channel_id);
+        continue;
+      }
+
+      await ch.delete("Private room expired (3 days inactivity)").catch(() => {});
+      await markPrivateRoomDeleted(r.channel_id);
+    }
+  } catch (e) {
+    console.error("Private room cleanup error:", e?.message || e);
+  }
+});
+
 // ===== AUTO RUMBLE PAYOUT =====
 client.on("messageCreate", async (message) => {
   try {
@@ -916,6 +949,19 @@ client.on("messageCreate", async (message) => {
     }
   } catch (err) {
     console.error("Auto-delete error:", err?.message || err);
+  }
+});
+
+client.on("messageCreate", async (message) => {
+  try {
+    if (!message.guild) return;
+    if (message.author.bot) return;
+
+    // Touch activity ONLY if this channel is an active private room
+    // (cheap update; if channel isn't in DB, nothing happens)
+    await touchPrivateRoom(message.channel.id);
+  } catch (e) {
+    // ignore
   }
 });
 
@@ -1232,7 +1278,91 @@ client.on("interactionCreate", async (interaction) => {
     // BUTTON HANDLERS (ALWAYS BEFORE SLASH COMMAND CHECK)
     // ====================================================
 
-    // ---------- LEADERBOARD BUTTONS ----------
+   // ---------- PRIVATE ROOM BUTTON ----------
+if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
+  // we are creating a channel -> use deferReply (not deferUpdate)
+  await interaction.deferReply({ ephemeral: true });
+
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+
+  // 1) if they already have an active room, just point them to it
+  const existing = await getActivePrivateRoomByOwner(guildId, userId, PRIVATE_HUB_TYPE);
+  if (existing) {
+    const ch = await interaction.guild.channels.fetch(existing.channel_id).catch(() => null);
+    if (ch) {
+      return interaction.editReply(`✅ You already have a room: <#${existing.channel_id}>`);
+    }
+    // if channel was deleted manually, mark deleted in DB so they can make a new one
+    await markPrivateRoomDeleted(existing.channel_id);
+  }
+
+  // 2) create channel under category
+  const safeName = interaction.user.username
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "")
+    .slice(0, 16);
+
+  const channelName = `🎲│ghosty-${safeName || "player"}`;
+
+  const created = await interaction.guild.channels.create({
+    name: channelName,
+    parentId: PRIVATE_GHOSTY_CATEGORY_ID,
+    reason: `Ghosty private room for ${interaction.user.tag}`,
+    permissionOverwrites: [
+      // deny everyone
+      {
+        id: interaction.guild.roles.everyone.id,
+        deny: [
+          PermissionsBitField.Flags.ViewChannel
+        ]
+      },
+      // allow owner (all perms you listed)
+      {
+        id: userId,
+        allow: [
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.ManageChannels,
+          PermissionsBitField.Flags.SendMessages,
+          PermissionsBitField.Flags.EmbedLinks,
+          PermissionsBitField.Flags.AttachFiles,
+          PermissionsBitField.Flags.AddReactions,
+          PermissionsBitField.Flags.UseExternalEmojis,
+          PermissionsBitField.Flags.UseExternalStickers,
+          PermissionsBitField.Flags.ManageMessages,
+          PermissionsBitField.Flags.ReadMessageHistory,
+          PermissionsBitField.Flags.UseApplicationCommands
+        ]
+      },
+      // always allow the bot
+      {
+        id: interaction.client.user.id,
+        allow: [
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.SendMessages,
+          PermissionsBitField.Flags.ManageChannels,
+          PermissionsBitField.Flags.ManageMessages,
+          PermissionsBitField.Flags.ReadMessageHistory,
+          PermissionsBitField.Flags.EmbedLinks,
+          PermissionsBitField.Flags.AttachFiles
+        ]
+      }
+    ]
+  });
+
+  // 3) insert DB row
+  await insertPrivateRoom({
+    channel_id: created.id,
+    guild_id: guildId,
+    owner_id: userId,
+    hub_type: PRIVATE_HUB_TYPE
+  });
+
+  // 4) confirm
+  return interaction.editReply(`✅ Room created: <#${created.id}>`);
+}
+
+     // ---------- LEADERBOARD BUTTONS ----------
     if (interaction.isButton() && interaction.customId.startsWith("lb:")) {
       await interaction.deferUpdate();
 
