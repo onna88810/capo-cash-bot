@@ -996,8 +996,6 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-const PRIVATE_EMBED_THROTTLE = new Map(); // put this ABOVE the handler (once)
-
 client.on("messageCreate", async (message) => {
   try {
     if (!message.guild) return;
