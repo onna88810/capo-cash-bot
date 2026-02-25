@@ -149,15 +149,24 @@ export async function getActivePrivateRoomByOwner(guildId, ownerId, hubType) {
 export async function insertPrivateRoom({ channel_id, guild_id, owner_id, hub_type }) {
   const { error } = await supabase
     .from("private_rooms")
-    .insert({
-      channel_id,
-      guild_id,
-      owner_id,
-      hub_type,
-      deleted_at: null
-    });
+    .upsert(
+      {
+        channel_id,
+        guild_id,
+        owner_id,
+        hub_type,
+        deleted_at: null,
+        last_activity_at: new Date().toISOString()
+      },
+      { onConflict: "channel_id" }
+    );
 
-  if (error) throw error;
+  if (error) {
+    console.error("insertPrivateRoom upsert error:", error);
+    return null; // do NOT throw
+  }
+
+  return true;
 }
 
 export async function touchPrivateRoom(channelId) {
