@@ -40,6 +40,30 @@ const PRIVATE_ROOM_TTL_MS = PRIVATE_ROOM_IDLE_DAYS * 24 * 60 * 60 * 1000;
 const PRV_CREATE_BTN = "pr:ghosty_gambling:create";
 const PRIVATE_HUB_TYPE = "ghosty_gambling";
 const PRIVATE_GHOSTY_CATEGORY_ID = PRIVATE_ROOM_PARENT_CATEGORY_ID;
+const PRV_ADD_BTN = "pr:ghosty:add";
+const PRV_REMOVE_BTN = "pr:ghosty:remove";
+const PRV_ADD_MODAL = "pr:ghosty:add_modal";
+const PRV_REMOVE_MODAL = "pr:ghosty:remove_modal";
+
+// Guest perms (same as owner EXCEPT ManageChannels)
+const PRV_GUEST_ALLOW = [
+  PermissionsBitField.Flags.ViewChannel,
+  PermissionsBitField.Flags.SendMessages,
+  PermissionsBitField.Flags.EmbedLinks,
+  PermissionsBitField.Flags.AttachFiles,
+  PermissionsBitField.Flags.AddReactions,
+  PermissionsBitField.Flags.UseExternalEmojis,
+  PermissionsBitField.Flags.UseExternalStickers,
+  PermissionsBitField.Flags.ManageMessages,
+  PermissionsBitField.Flags.ReadMessageHistory,
+  PermissionsBitField.Flags.UseApplicationCommands
+];
+
+// Accepts: <@123>, <@!123>, or 123
+function parseUserIdInput(str = "") {
+  const m = String(str).match(/(\d{17,20})/);
+  return m ? m[1] : null;
+}
 
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
@@ -1364,8 +1388,109 @@ try {
     hub_type: PRIVATE_HUB_TYPE
   });
 
+const manageRow = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId(PRV_ADD_BTN)
+    .setLabel("Add user")
+    .setStyle(ButtonStyle.Success),
+  new ButtonBuilder()
+    .setCustomId(PRV_REMOVE_BTN)
+    .setLabel("Remove user")
+    .setStyle(ButtonStyle.Danger)
+);
+
+await created.send({
+  content: "👻 **Private Room Controls**\nUse these to add/remove someone from your room.",
+  components: [manageRow]
+});
+
   // 4) confirm
   return interaction.editReply(`✅ Room created: <#${created.id}>`);
+}
+
+// ---------- PRIVATE ROOM: ADD/REMOVE BUTTONS ----------
+if (interaction.isButton() && (interaction.customId === PRV_ADD_BTN || interaction.customId === PRV_REMOVE_BTN)) {
+  // Only works inside the private room itself
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+  const channelId = interaction.channelId;
+
+  // Verify: caller owns THIS room
+  const existing = await getActivePrivateRoomByOwner(guildId, userId, PRIVATE_HUB_TYPE);
+  if (!existing || existing.channel_id !== channelId) {
+    return interaction.reply({ content: "🚫 Only the room owner can use these buttons.", ephemeral: true });
+  }
+
+  const isAdd = interaction.customId === PRV_ADD_BTN;
+
+  const modal = new ModalBuilder()
+    .setCustomId(`${isAdd ? PRV_ADD_MODAL : PRV_REMOVE_MODAL}:${channelId}`)
+    .setTitle(isAdd ? "Add a user to this room" : "Remove a user from this room");
+
+  const input = new TextInputBuilder()
+    .setCustomId("pr_user")
+    .setLabel("User mention or ID")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("Example: @Jake or 123456789012345678")
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return interaction.showModal(modal);
+}
+// ---------- PRIVATE ROOM: ADD/REMOVE MODALS ----------
+if (
+  interaction.type === InteractionType.ModalSubmit &&
+  (interaction.customId.startsWith(`${PRV_ADD_MODAL}:`) || interaction.customId.startsWith(`${PRV_REMOVE_MODAL}:`))
+) {
+  const guildId = interaction.guildId;
+  const ownerId = interaction.user.id;
+
+  const [modalId, channelId] = interaction.customId.split(":");
+  const isAdd = modalId === PRV_ADD_MODAL;
+
+  // Verify ownership again
+  const existing = await getActivePrivateRoomByOwner(guildId, ownerId, PRIVATE_HUB_TYPE);
+  if (!existing || existing.channel_id !== channelId) {
+    return interaction.reply({ content: "🚫 Only the room owner can do that.", ephemeral: true });
+  }
+
+  const raw = interaction.fields.getTextInputValue("pr_user") || "";
+  const targetId = parseUserIdInput(raw);
+
+  if (!targetId) {
+    return interaction.reply({ content: "⚠️ I couldn’t read that user. Paste an @mention or a user ID.", ephemeral: true });
+  }
+
+  if (targetId === ownerId) {
+    return interaction.reply({ content: "⚠️ You already own this room.", ephemeral: true });
+  }
+
+  const ch = await interaction.guild.channels.fetch(channelId).catch(() => null);
+  if (!ch) {
+    return interaction.reply({ content: "⚠️ Channel not found (it may have been deleted).", ephemeral: true });
+  }
+
+  if (isAdd) {
+    // Add with guest perms (no ManageChannels)
+    await ch.permissionOverwrites.edit(targetId, {
+      ViewChannel: true,
+      SendMessages: true,
+      EmbedLinks: true,
+      AttachFiles: true,
+      AddReactions: true,
+      UseExternalEmojis: true,
+      UseExternalStickers: true,
+      ManageMessages: true,
+      ReadMessageHistory: true,
+      UseApplicationCommands: true
+    });
+
+    return interaction.reply({ content: `✅ Added <@${targetId}> to this room.`, ephemeral: true });
+  } else {
+    // Remove overwrite (they lose access)
+    await ch.permissionOverwrites.delete(targetId).catch(() => null);
+    return interaction.reply({ content: `🗑️ Removed <@${targetId}> from this room.`, ephemeral: true });
+  }
 }
 
      // ---------- LEADERBOARD BUTTONS ----------
