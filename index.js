@@ -1351,8 +1351,11 @@ if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
     ]
   });
 
-await created.setParent(PRIVATE_GHOSTY_CATEGORY_ID, { lockPermissions: false });
-  .catch(err => console.error("setParent failed:", err));
+try {
+  await created.setParent(PRIVATE_GHOSTY_CATEGORY_ID, { lockPermissions: false });
+} catch (err) {
+  console.error("setParent failed:", err);
+}
   // 3) insert DB row
   await insertPrivateRoom({
     channel_id: created.id,
