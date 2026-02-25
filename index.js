@@ -46,6 +46,31 @@ const PRV_ADD_MODAL = "pr:ghosty:add_modal";
 const PRV_REMOVE_MODAL = "pr:ghosty:remove_modal";
 const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
 
+const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
+
+function buildPrivateRoomControlsEmbed({ ownerId, lastActivityIso }) {
+  const last = lastActivityIso ? new Date(lastActivityIso) : new Date();
+  const expiresAt = new Date(last.getTime() + PRIVATE_ROOM_TTL_MS);
+  const expiresUnix = Math.floor(expiresAt.getTime() / 1000);
+
+  return new EmbedBuilder()
+    .setTitle("👻 Ghosty Private Room")
+    .setDescription(
+      "**🎛️ Room Controls**\n" +
+      "Use the buttons below to manage access to your private gambling room.\n\n" +
+      `⏳ **Resets on activity**\n` +
+      `🧨 **Auto-deletes:** <t:${expiresUnix}:R>\n\n` +
+      "• Add trusted players\n" +
+      "• Remove unwanted users\n"
+    )
+    .addFields({
+      name: "Room Owner",
+      value: `<@${ownerId}>`,
+      inline: true
+    })
+    .setTimestamp(new Date());
+}
+
 // Guest perms (same as owner EXCEPT ManageChannels)
 const PRV_GUEST_ALLOW = [
   PermissionsBitField.Flags.ViewChannel,
@@ -1004,36 +1029,28 @@ client.on("messageCreate", async (message) => {
     const room = await touchPrivateRoom(message.channel.id);
     if (!room) return;
 
-    // Throttle embed updates (once every 30 seconds per room)
-    const last = PRIVATE_EMBED_THROTTLE.get(room.channel_id) || 0;
-    if (Date.now() - last < 30_000) return;
+    // throttle embed updates (max once per minute)
+    const lastEdit = PRIVATE_EMBED_THROTTLE.get(room.channel_id) || 0;
+    if (Date.now() - lastEdit < 60_000) return;
     PRIVATE_EMBED_THROTTLE.set(room.channel_id, Date.now());
 
     if (!room.control_message_id) return;
 
-    const ch = await message.guild.channels.fetch(room.channel_id).catch(() => null);
-    if (!ch || !ch.isTextBased()) return;
+    const ch = message.channel;
+    if (!ch.isTextBased()) return;
 
-    const panelMsg = await ch.messages.fetch(room.control_message_id).catch(() => null);
-    if (!panelMsg) return;
+    const controlMsg = await ch.messages.fetch(room.control_message_id).catch(() => null);
+    if (!controlMsg) return;
 
-    const lastAct = DateTime.fromISO(room.last_activity_at);
-    const expires = lastAct.plus({ hours: 72 });
-    const unix = Math.floor(expires.toSeconds());
+    const embed = buildPrivateRoomControlsEmbed({
+      ownerId: room.owner_id,
+      lastActivityIso: room.last_activity_at
+    });
 
-    const updatedEmbed = EmbedBuilder.from(panelMsg.embeds[0])
-      .setDescription(
-        "### 🎛 Room Controls\n\n" +
-        "• Add trusted players\n" +
-        "• Remove unwanted users\n" +
-        "• Activity resets the 72-hour timer\n\n" +
-        `⏳ **Expires:** <t:${unix}:R>  *(<t:${unix}:f>)*`
-      )
-      .setTimestamp(new Date());
+    await controlMsg.edit({ embeds: [embed] }).catch(() => null);
 
-    await panelMsg.edit({ embeds: [updatedEmbed] }).catch(() => {});
-  } catch (e) {
-    // ignore
+  } catch (err) {
+    console.error("Private room touch error:", err);
   }
 });
 
@@ -1461,10 +1478,22 @@ const controlEmbed = new EmbedBuilder()
   .setFooter({ text: `Room Owner: ${interaction.user.username}` })
   .setTimestamp();
 
-const panelMsg = await created.send({
-  embeds: [controlEmbed],          // (your nice embed)
+const controlEmbed = buildPrivateRoomControlsEmbed({
+  ownerId: userId,
+  lastActivityIso: new Date().toISOString()
+});
+
+const controlMsg = await created.send({
+  embeds: [controlEmbed],
   components: [manageRow]
 });
+
+// save the control message id so we can edit it later
+await supabase
+  .from("private_rooms")
+  .update({ control_message_id: controlMsg.id })
+  .eq("channel_id", created.id)
+  .is("deleted_at", null);
 
 // (optional) pin it
 await panelMsg.pin().catch(() => {});
