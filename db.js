@@ -144,3 +144,17 @@ export async function markPrivateRoomDeleted(channelId) {
 
   if (error) throw error;
 }
+export async function touchPrivateRoom(channelId) {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("private_rooms")
+    .update({ last_activity_at: now })
+    .eq("channel_id", channelId)
+    .eq("deleted", false)
+    .select("channel_id, owner_id, last_activity_at, control_message_id")
+    .single();
+
+  if (error) return null;
+  return data;
+}
