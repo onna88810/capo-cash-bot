@@ -996,14 +996,44 @@ client.on("messageCreate", async (message) => {
   }
 });
 
+const PRIVATE_EMBED_THROTTLE = new Map(); // put this ABOVE the handler (once)
+
 client.on("messageCreate", async (message) => {
   try {
     if (!message.guild) return;
     if (message.author.bot) return;
 
-    // Touch activity ONLY if this channel is an active private room
-    // (cheap update; if channel isn't in DB, nothing happens)
-    await touchPrivateRoom(message.channel.id);
+    const room = await touchPrivateRoom(message.channel.id);
+    if (!room) return;
+
+    // Throttle embed updates (once every 30 seconds per room)
+    const last = PRIVATE_EMBED_THROTTLE.get(room.channel_id) || 0;
+    if (Date.now() - last < 30_000) return;
+    PRIVATE_EMBED_THROTTLE.set(room.channel_id, Date.now());
+
+    if (!room.control_message_id) return;
+
+    const ch = await message.guild.channels.fetch(room.channel_id).catch(() => null);
+    if (!ch || !ch.isTextBased()) return;
+
+    const panelMsg = await ch.messages.fetch(room.control_message_id).catch(() => null);
+    if (!panelMsg) return;
+
+    const lastAct = DateTime.fromISO(room.last_activity_at);
+    const expires = lastAct.plus({ hours: 72 });
+    const unix = Math.floor(expires.toSeconds());
+
+    const updatedEmbed = EmbedBuilder.from(panelMsg.embeds[0])
+      .setDescription(
+        "### 🎛 Room Controls\n\n" +
+        "• Add trusted players\n" +
+        "• Remove unwanted users\n" +
+        "• Activity resets the 72-hour timer\n\n" +
+        `⏳ **Expires:** <t:${unix}:R>  *(<t:${unix}:f>)*`
+      )
+      .setTimestamp(new Date());
+
+    await panelMsg.edit({ embeds: [updatedEmbed] }).catch(() => {});
   } catch (e) {
     // ignore
   }
