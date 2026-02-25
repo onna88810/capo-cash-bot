@@ -3557,7 +3557,7 @@ if (last) {
       );
     }
   } catch (e) {
-    console.error("Interaction error:", e?.message || e);
+    console.error("Interaction error FULL:", e);
 
     try {
       if (interaction.deferred || interaction.replied) {
