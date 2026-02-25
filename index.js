@@ -1563,7 +1563,7 @@ await supabase
   .is("deleted_at", null);
 
 // (optional) pin it
-await panelMsg.pin().catch(() => {});
+await controlMsg.pin().catch(() => {});
 
 // ✅ save message id so we can edit it later
 await supabase
