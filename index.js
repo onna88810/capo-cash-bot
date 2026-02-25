@@ -2719,7 +2719,8 @@ return;
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.guild) return;
 
-    await interaction.deferReply();
+    const EPHEMERAL_CMDS = new Set(["stick", "stickembed", "editsticky", "unstick"]);
+await interaction.deferReply({ ephemeral: EPHEMERAL_CMDS.has(interaction.commandName) });
     const guildId = interaction.guildId;
 const callerId = interaction.user.id;
 const cfg = await getConfig(guildId);
