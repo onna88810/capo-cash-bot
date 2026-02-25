@@ -123,7 +123,11 @@ import {
   insertPrivateRoom,
   touchPrivateRoom,
   getExpiredPrivateRooms,
-  markPrivateRoomDeleted
+  markPrivateRoomDeleted,
+  getSticky,
+  upsertSticky,
+  clearSticky,
+  updateStickyLastPosted
 } from "./db.js";
 import cron from "node-cron";
 import { Resvg } from "@resvg/resvg-js";
