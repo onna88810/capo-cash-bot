@@ -2895,19 +2895,38 @@ if (interaction.commandName === "unstick") {
   const existing = await getSticky(guildId, channelId);
   if (!existing) return interaction.editReply("✅ No sticky to remove.");
 
-  // delete message (try DB id first)
+// delete message (try DB id first)
 if (existing.sticky_message_id) {
-  const ch = interaction.channel;
-  const oldMsg = await ch.messages.fetch(existing.sticky_message_id).catch(() => null);
+  const oldMsg = await interaction.channel.messages
+    .fetch(existing.sticky_message_id)
+    .catch(() => null);
+
   if (oldMsg) await oldMsg.delete().catch(() => {});
 }
 
-// also clear local cache so it stops
-STICKY_LAST_SENT.delete(channelId);
+// 🔥 fallback: delete the most recent sticky-looking message from the bot
+// (in case DB id is stale)
+const recent = await interaction.channel.messages.fetch({ limit: 25 }).catch(() => null);
+if (recent) {
+  const botMsgs = [...recent.values()].filter(m => m.author?.id === client.user.id);
 
-  await clearSticky(guildId, channelId);
-  return interaction.editReply("✅ Sticky removed.");
+  for (const m of botMsgs) {
+    const isMatch =
+      (existing.type === "message" && existing.content && m.content === existing.content) ||
+      (existing.type === "embed" &&
+        m.embeds?.[0] &&
+        (m.embeds[0].title === existing.embed_title ||
+         m.embeds[0].description === existing.embed_description));
+
+    if (isMatch) {
+      await m.delete().catch(() => {});
+      break;
+    }
+  }
 }
+
+await clearSticky(guildId, channelId);
+return interaction.editReply("✅ Sticky removed.");
 
     const guildId = interaction.guild.id;
     const callerId = interaction.user.id;
