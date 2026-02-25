@@ -81,6 +81,52 @@ export async function markRumblePaid(guildId, messageId, winnerUserId, amount) {
   if (error) throw error;
 }
 // ==============================
+// STICKY MESSAGES
+// ==============================
+
+export async function getSticky(guildId, channelId) {
+  const { data, error } = await supabase
+    .from("stickies")
+    .select("*")
+    .eq("guild_id", guildId)
+    .eq("channel_id", channelId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+export async function upsertSticky(row) {
+  const { data, error } = await supabase
+    .from("stickies")
+    .upsert(row, { onConflict: "guild_id,channel_id" })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function clearSticky(guildId, channelId) {
+  const { error } = await supabase
+    .from("stickies")
+    .delete()
+    .eq("guild_id", guildId)
+    .eq("channel_id", channelId);
+
+  if (error) throw error;
+}
+
+export async function updateStickyLastPosted(guildId, channelId, messageId) {
+  const { error } = await supabase
+    .from("stickies")
+    .update({ last_posted_message_id: messageId, updated_at: new Date().toISOString() })
+    .eq("guild_id", guildId)
+    .eq("channel_id", channelId);
+
+  if (error) throw error;
+}
+// ==============================
 // PRIVATE ROOMS (Ghosty Gambling)
 // ==============================
 
