@@ -2713,16 +2713,16 @@ return;
     if (!interaction.isChatInputCommand()) return;
     if (!interaction.guild) return;
 
-    const EPHEMERAL_CMDS = new Set(["stick", "stickembed", "editsticky", "unstick"]);
+    const EPHEMERAL_CMDS = new Set(["sticky", "unstick"]);
 await interaction.deferReply({ ephemeral: EPHEMERAL_CMDS.has(interaction.commandName) });
     const guildId = interaction.guildId;
 const callerId = interaction.user.id;
 const cfg = await getConfig(guildId);
 const tz = cfg.timezone || "America/Chicago";
-    // ==============================
+// ==============================
 // 📌 STICKY (Slash Commands)
 // ==============================
-if (interaction.commandName === "stick") {
+if (interaction.commandName === "sticky") {
   // staff only
   const member = interaction.member;
   const isStaff =
@@ -2765,118 +2765,6 @@ if (interaction.commandName === "stick") {
   return interaction.editReply("✅ Sticky message set.");
 }
 
-if (interaction.commandName === "stickembed") {
-  // staff only
-  const member = interaction.member;
-  const isStaff =
-    member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
-    member.permissions.has(PermissionsBitField.Flags.ManageMessages) ||
-    member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
-    member.permissions.has(PermissionsBitField.Flags.Administrator);
-
-  if (!isStaff) return interaction.editReply("❌ Staff only.");
-
-  const guildId = interaction.guildId;
-  const channelId = interaction.channelId;
-  const authorId = interaction.user.id;
-
-  const title = interaction.options.getString("title", true);
-  const message = interaction.options.getString("message", true);
-
-  const existing = await getSticky(guildId, channelId);
-  if (existing?.sticky_message_id) {
-    const ch = interaction.channel;
-    const oldMsg = await ch.messages.fetch(existing.sticky_message_id).catch(() => null);
-    if (oldMsg) await oldMsg.delete().catch(() => {});
-  }
-
-  const embed = new EmbedBuilder()
-    .setTitle(title)
-    .setDescription(message)
-    .setTimestamp(new Date());
-
-  const posted = await interaction.channel.send({ embeds: [embed] });
-
-  await upsertSticky({
-    guild_id: guildId,
-    channel_id: channelId,
-    type: "embed",
-    content: null,
-    embed_title: title,
-    embed_description: message,
-    sticky_message_id: posted.id,
-    last_posted_at: new Date().toISOString(),
-    created_by: authorId
-  });
-
-  return interaction.editReply("✅ Sticky embed set.");
-}
-
-if (interaction.commandName === "editsticky") {
-  // staff only
-  const member = interaction.member;
-  const isStaff =
-    member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
-    member.permissions.has(PermissionsBitField.Flags.ManageMessages) ||
-    member.permissions.has(PermissionsBitField.Flags.ModerateMembers) ||
-    member.permissions.has(PermissionsBitField.Flags.Administrator);
-
-  if (!isStaff) return interaction.editReply("❌ Staff only.");
-
-  const guildId = interaction.guildId;
-  const channelId = interaction.channelId;
-
-  const existing = await getSticky(guildId, channelId);
-  if (!existing) return interaction.editReply("❌ No sticky is set in this channel.");
-
-  const newMsg = interaction.options.getString("message", true);
-
-  // delete old sticky message
-  if (existing.sticky_message_id) {
-    const ch = interaction.channel;
-    const oldMsg = await ch.messages.fetch(existing.sticky_message_id).catch(() => null);
-    if (oldMsg) await oldMsg.delete().catch(() => {});
-  }
-
-  // repost with updated content
-  if (existing.type === "embed") {
-    const embed = new EmbedBuilder()
-      .setTitle(existing.embed_title || "Sticky")
-      .setDescription(newMsg)
-      .setTimestamp(new Date());
-
-    const posted = await interaction.channel.send({ embeds: [embed] });
-
-    await upsertSticky({
-      guild_id: guildId,
-      channel_id: channelId,
-      type: "embed",
-      content: null,
-      embed_title: existing.embed_title || "Sticky",
-      embed_description: newMsg,
-      sticky_message_id: posted.id,
-      last_posted_at: new Date().toISOString(),
-      created_by: existing.created_by || interaction.user.id
-    });
-  } else {
-    const posted = await interaction.channel.send({ content: newMsg });
-
-    await upsertSticky({
-      guild_id: guildId,
-      channel_id: channelId,
-      type: "message",
-      content: newMsg,
-      embed_title: null,
-      embed_description: null,
-      sticky_message_id: posted.id,
-      last_posted_at: new Date().toISOString(),
-      created_by: existing.created_by || interaction.user.id
-    });
-  }
-
-  return interaction.editReply("✅ Sticky updated.");
-}
-
 if (interaction.commandName === "unstick") {
   // staff only
   const member = interaction.member;
@@ -2894,38 +2782,37 @@ if (interaction.commandName === "unstick") {
   const existing = await getSticky(guildId, channelId);
   if (!existing) return interaction.editReply("✅ No sticky to remove.");
 
-// delete message (try DB id first)
-if (existing.sticky_message_id) {
-  const oldMsg = await interaction.channel.messages
-    .fetch(existing.sticky_message_id)
-    .catch(() => null);
+  // delete message (try DB id first)
+  if (existing.sticky_message_id) {
+    const oldMsg = await interaction.channel.messages
+      .fetch(existing.sticky_message_id)
+      .catch(() => null);
 
-  if (oldMsg) await oldMsg.delete().catch(() => {});
-}
+    if (oldMsg) await oldMsg.delete().catch(() => {});
+  }
 
-// 🔥 fallback: delete the most recent sticky-looking message from the bot
-// (in case DB id is stale)
-const recent = await interaction.channel.messages.fetch({ limit: 25 }).catch(() => null);
-if (recent) {
-  const botMsgs = [...recent.values()].filter(m => m.author?.id === client.user.id);
+  // fallback: delete the most recent sticky-looking message from the bot (in case DB id is stale)
+  const recent = await interaction.channel.messages.fetch({ limit: 25 }).catch(() => null);
+  if (recent) {
+    const botMsgs = [...recent.values()].filter(m => m.author?.id === client.user.id);
 
-  for (const m of botMsgs) {
-    const isMatch =
-      (existing.type === "message" && existing.content && m.content === existing.content) ||
-      (existing.type === "embed" &&
-        m.embeds?.[0] &&
-        (m.embeds[0].title === existing.embed_title ||
-         m.embeds[0].description === existing.embed_description));
+    for (const m of botMsgs) {
+      const isMatch =
+        (existing.type === "message" && existing.content && m.content === existing.content) ||
+        (existing.type === "embed" &&
+          m.embeds?.[0] &&
+          (m.embeds[0].title === existing.embed_title ||
+           m.embeds[0].description === existing.embed_description));
 
-    if (isMatch) {
-      await m.delete().catch(() => {});
-      break;
+      if (isMatch) {
+        await m.delete().catch(() => {});
+        break;
+      }
     }
   }
-}
 
-await clearSticky(guildId, channelId);
-return interaction.editReply("✅ Sticky removed.");
+  await clearSticky(guildId, channelId);
+  return interaction.editReply("✅ Sticky removed.");
 }
 
 
