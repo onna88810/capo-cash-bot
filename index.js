@@ -13,7 +13,8 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  InteractionType
+  InteractionType,
+  ChannelType
 } from "discord.js";
 
 import fs from "node:fs/promises";
@@ -28,6 +29,14 @@ const LOCK_ROLE_IDS = [
 ];
 // The ONE channel you want /lock and /unlock to affect:
 const LOCK_CHANNEL_ID = "1469891401314603018";
+
+// ==============================
+// PRIVATE ROOMS (Ghosty Gambling)
+// ==============================
+const GHOSTY_PRIVATE_HUB_CHANNEL_ID = "1462504562995892376";
+const PRIVATE_ROOM_PARENT_CATEGORY_ID = "1301576482644295731";
+const PRIVATE_ROOM_IDLE_DAYS = 3;
+
 import { DateTime } from "luxon";
 import { COMMANDS } from "./commands.js";
 import {
@@ -37,7 +46,13 @@ import {
   supabase,
   insertTransaction,
   hasRumblePaid,
-  markRumblePaid
+  markRumblePaid,
+    // 👻 Private Rooms
+  getActivePrivateRoomByOwner,
+  insertPrivateRoom,
+  touchPrivateRoom,
+  getExpiredPrivateRooms,
+  markPrivateRoomDeleted
 } from "./db.js";
 import cron from "node-cron";
 import { Resvg } from "@resvg/resvg-js";
@@ -2281,6 +2296,56 @@ return;
     const callerId = interaction.user.id;
     const cfg = await getConfig(guildId);
     const tz = cfg?.timezone || "America/Chicago";
+
+// ---------- /private ghosty gambling ----------
+if (interaction.commandName === "private") {
+  const group = interaction.options.getSubcommandGroup();
+  const sub = interaction.options.getSubcommand();
+
+  if (group === "ghosty" && sub === "gambling") {
+    const HUB_CHANNEL_ID = "1462504562995892376";
+
+    // Optional: lock to staff/admin only
+    // If you want anyone to be able to run it, remove this check.
+    const member = interaction.member;
+    const isStaff =
+      member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+      member.permissions.has(PermissionsBitField.Flags.ManageMessages) ||
+      member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+    if (!isStaff) {
+      return interaction.editReply("❌ Staff only.");
+    }
+
+    const hub = await interaction.client.channels.fetch(HUB_CHANNEL_ID);
+    if (!hub || !hub.isTextBased()) {
+      return interaction.editReply("❌ Hub channel not found or not text-based.");
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("👻 Ghosty Private Gambling Rooms")
+      .setDescription(
+        "Press the button to create your **private gambling room**.\n\n" +
+        "• Private access for you\n" +
+        "• Auto-deletes after **3 days of inactivity**\n" +
+        "• Activity resets the timer"
+      )
+      .setTimestamp(new Date());
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("pr:ghosty_gambling:create")
+        .setLabel("Create Private Gambling Room")
+        .setStyle(ButtonStyle.Success)
+    );
+
+    await hub.send({ embeds: [embed], components: [row] });
+
+    return interaction.editReply("✅ Posted the Ghosty private gambling room panel.");
+  }
+
+  return interaction.editReply("❌ Unknown private subcommand.");
+}
 
     // ---------- /slots ----------
     // NOTE: This index already expects /slots with NO bet option.
