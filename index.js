@@ -2720,6 +2720,10 @@ return;
     if (!interaction.guild) return;
 
     await interaction.deferReply();
+    const guildId = interaction.guildId;
+const callerId = interaction.user.id;
+const cfg = await getConfig(guildId);
+const tz = cfg.timezone || "America/Chicago";
     // ==============================
 // 📌 STICKY (Slash Commands)
 // ==============================
