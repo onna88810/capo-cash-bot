@@ -80,3 +80,67 @@ export async function markRumblePaid(guildId, messageId, winnerUserId, amount) {
     });
   if (error) throw error;
 }
+// ==============================
+// PRIVATE ROOMS (Ghosty Gambling)
+// ==============================
+
+export async function getActivePrivateRoomByOwner(guildId, ownerId, hubType) {
+  const { data, error } = await supabase
+    .from("private_rooms")
+    .select("*")
+    .eq("guild_id", guildId)
+    .eq("owner_id", ownerId)
+    .eq("hub_type", hubType)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+export async function insertPrivateRoom({ channel_id, guild_id, owner_id, hub_type }) {
+  const { error } = await supabase
+    .from("private_rooms")
+    .insert({
+      channel_id,
+      guild_id,
+      owner_id,
+      hub_type,
+      deleted_at: null
+    });
+
+  if (error) throw error;
+}
+
+export async function touchPrivateRoom(channelId) {
+  const { error } = await supabase
+    .from("private_rooms")
+    .update({ last_activity_at: new Date().toISOString() })
+    .eq("channel_id", channelId)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+}
+
+export async function getExpiredPrivateRooms(cutoffIso) {
+  const { data, error } = await supabase
+    .from("private_rooms")
+    .select("channel_id,guild_id")
+    .is("deleted_at", null)
+    .lt("last_activity_at", cutoffIso)
+    .limit(200);
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function markPrivateRoomDeleted(channelId) {
+  const { error } = await supabase
+    .from("private_rooms")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("channel_id", channelId);
+
+  if (error) throw error;
+}
