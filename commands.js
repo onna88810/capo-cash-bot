@@ -116,6 +116,54 @@ new SlashCommandBuilder()
   .setDescription("Unlock the current channel (restore Send Messages for configured roles)"
     ),
   
+  // STICKY
+{
+  name: "stick",
+  description: "Post a sticky message in this channel",
+  options: [
+    {
+      name: "message",
+      description: "The message to keep pinned at the bottom",
+      type: 3, // STRING
+      required: true
+    }
+  ]
+},
+{
+  name: "stickembed",
+  description: "Post a sticky embed in this channel",
+  options: [
+    {
+      name: "title",
+      description: "Embed title",
+      type: 3,
+      required: true
+    },
+    {
+      name: "message",
+      description: "Embed description",
+      type: 3,
+      required: true
+    }
+  ]
+},
+{
+  name: "editsticky",
+  description: "Edit the sticky in this channel",
+  options: [
+    {
+      name: "message",
+      description: "New sticky message",
+      type: 3,
+      required: true
+    }
+  ]
+},
+{
+  name: "unstick",
+  description: "Remove the sticky from this channel"
+}
+
     // RUMBLE (admin)
   new SlashCommandBuilder()
     .setName("rumble")
