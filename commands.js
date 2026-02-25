@@ -118,48 +118,23 @@ export const COMMANDS = [
     .setName("unlock")
     .setDescription("Unlock the current channel (restore Send Messages for configured roles)"),
 
-  // =========================
-  // STICKY COMMANDS (FIXED)
-  // =========================
-  new SlashCommandBuilder()
-    .setName("stick")
-    .setDescription("Post a sticky message in this channel")
-    .addStringOption((o) =>
-      o
-        .setName("message")
-        .setDescription("The message to keep pinned at the bottom")
-        .setRequired(true)
-    ),
+// ==============================
+// STICKY COMMANDS (UPDATED)
+// ==============================
 
-  new SlashCommandBuilder()
-    .setName("stickembed")
-    .setDescription("Post a sticky embed in this channel")
-    .addStringOption((o) =>
-      o
-        .setName("title")
-        .setDescription("Embed title")
-        .setRequired(true)
-    )
-    .addStringOption((o) =>
-      o
-        .setName("message")
-        .setDescription("Embed description")
-        .setRequired(true)
-    ),
+new SlashCommandBuilder()
+  .setName("sticky")
+  .setDescription("Post a sticky message in this channel (staff only).")
+  .addStringOption((o) =>
+    o
+      .setName("message")
+      .setDescription("The message to keep pinned/reposted")
+      .setRequired(true)
+  ),
 
-  new SlashCommandBuilder()
-    .setName("editsticky")
-    .setDescription("Edit the sticky in this channel")
-    .addStringOption((o) =>
-      o
-        .setName("message")
-        .setDescription("New sticky message")
-        .setRequired(true)
-    ),
-
-  new SlashCommandBuilder()
-    .setName("unstick")
-    .setDescription("Remove the sticky from this channel"),
+new SlashCommandBuilder()
+  .setName("unstick")
+  .setDescription("Remove the sticky message in this channel (staff only)."),
 
   // RUMBLE (admin)
   new SlashCommandBuilder()
