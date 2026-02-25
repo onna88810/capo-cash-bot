@@ -1415,11 +1415,10 @@ if (interaction.isButton() && (interaction.customId === PRV_ADD_BTN || interacti
   const userId = interaction.user.id;
   const channelId = interaction.channelId;
 
-  // Verify: caller owns THIS room
-  const existing = await getActivePrivateRoomByOwner(guildId, userId, PRIVATE_HUB_TYPE);
-  if (!existing || existing.channel_id !== channelId) {
-    return interaction.reply({ content: "🚫 Only the room owner can use these buttons.", ephemeral: true });
-  }
+ const existing = await getActivePrivateRoomByOwner(guildId, userId, PRIVATE_HUB_TYPE);
+if (!existing || String(existing.channel_id) !== String(channelId)) {
+  return interaction.reply({ content: "🚫 Only the room owner can use these buttons.", ephemeral: true });
+}
 
   const isAdd = interaction.customId === PRV_ADD_BTN;
 
@@ -1445,14 +1444,16 @@ if (
   const guildId = interaction.guildId;
   const ownerId = interaction.user.id;
 
-  const [modalId, channelId] = interaction.customId.split(":");
-  const isAdd = modalId === PRV_ADD_MODAL;
+ const parts = interaction.customId.split(":");
+const channelId = parts[parts.length - 1];
+const modalId = parts.slice(0, parts.length - 1).join(":");
+const isAdd = modalId === PRV_ADD_MODAL;
 
   // Verify ownership again
   const existing = await getActivePrivateRoomByOwner(guildId, ownerId, PRIVATE_HUB_TYPE);
-  if (!existing || existing.channel_id !== channelId) {
-    return interaction.reply({ content: "🚫 Only the room owner can do that.", ephemeral: true });
-  }
+if (!existing || String(existing.channel_id) !== String(channelId)) {
+  return interaction.reply({ content: "🚫 Only the room owner can do that.", ephemeral: true });
+}
 
   const raw = interaction.fields.getTextInputValue("pr_user") || "";
   const targetId = parseUserIdInput(raw);
