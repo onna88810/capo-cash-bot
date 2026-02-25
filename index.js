@@ -2895,12 +2895,15 @@ if (interaction.commandName === "unstick") {
   const existing = await getSticky(guildId, channelId);
   if (!existing) return interaction.editReply("✅ No sticky to remove.");
 
-  // delete message
-  if (existing.sticky_message_id) {
-    const ch = interaction.channel;
-    const oldMsg = await ch.messages.fetch(existing.sticky_message_id).catch(() => null);
-    if (oldMsg) await oldMsg.delete().catch(() => {});
-  }
+  // delete message (try DB id first)
+if (existing.sticky_message_id) {
+  const ch = interaction.channel;
+  const oldMsg = await ch.messages.fetch(existing.sticky_message_id).catch(() => null);
+  if (oldMsg) await oldMsg.delete().catch(() => {});
+}
+
+// also clear local cache so it stops
+STICKY_LAST_SENT.delete(channelId);
 
   await clearSticky(guildId, channelId);
   return interaction.editReply("✅ Sticky removed.");
