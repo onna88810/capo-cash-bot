@@ -46,8 +46,6 @@ const PRV_ADD_MODAL = "pr:ghosty:add_modal";
 const PRV_REMOVE_MODAL = "pr:ghosty:remove_modal";
 const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
 
-const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
-
 function buildPrivateRoomControlsEmbed({ ownerId, lastActivityIso }) {
   const last = lastActivityIso ? new Date(lastActivityIso) : new Date();
   const expiresAt = new Date(last.getTime() + PRIVATE_ROOM_TTL_MS);
