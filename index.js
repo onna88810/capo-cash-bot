@@ -21,13 +21,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import GIFEncoder from "gif-encoder-2";
-// Roles that get muted when /lock is used
-const LOCK_ROLE_IDS = [
-  "1457168952936501248",
-  "1457169070452379680",
-  "1457174938380402739"
+// Roles that get FULL locked (no messages + no reactions/emojis)
+const FULL_LOCK_ROLE_IDS = [
+  "1457174938380402739", // L
+  "1457169070452379680", // N
+  "1457168952936501248"  // S
 ];
+
+// Role that should STILL be able to send messages, but can't react/use external emojis
 const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
+
 // The ONE channel you want /lock and /unlock to affect:
 const LOCK_CHANNEL_ID = "1469891401314603018";
 
