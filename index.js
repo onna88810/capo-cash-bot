@@ -3184,13 +3184,14 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
           UseExternalEmojis: false
         });
       } else {
-        // reset to inherit defaults
-        await channel.permissionOverwrites.edit(roleId, {
-          SendMessages: null,
-          SendMessagesInThreads: null,
-          AddReactions: null,
-          UseExternalEmojis: null
-        });
+        // ✅ force allow back on (do NOT set null)
+await channel.permissionOverwrites.edit(roleId, {
+  SendMessages: true,
+  SendMessagesInThreads: true,
+  AddReactions: true,
+  UseExternalEmojis: true,
+  UseExternalStickers: true
+});
       }
     }
 
