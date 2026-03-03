@@ -825,11 +825,6 @@ async function applyBalanceChange({
   });
 }
 
-// ===== Monthly Booster Helpers =====
-function monthKeyInTz(tz = "America/Chicago") {
-  return DateTime.now().setZone(tz).toFormat("yyyy-LL");
-}
-
 // ===== Ready / Command registration =====
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
