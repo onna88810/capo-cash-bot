@@ -80,6 +80,31 @@ export async function markRumblePaid(guildId, messageId, winnerUserId, amount) {
     });
   if (error) throw error;
 }
+
+export async function hasMonthlyBoosterGift(guildId, userId, monthKey) {
+  const { data, error } = await supabase
+    .from("monthly_booster_gifts")
+    .select("guild_id")
+    .eq("guild_id", guildId)
+    .eq("user_id", userId)
+    .eq("month_key", monthKey)
+    .maybeSingle();
+
+  if (error) throw error;
+  return !!data;
+}
+
+export async function markMonthlyBoosterGift(guildId, userId, monthKey) {
+  const { error } = await supabase
+    .from("monthly_booster_gifts")
+    .insert([{ guild_id: guildId, user_id: userId, month_key: monthKey }]);
+
+  // ignore duplicate inserts safely (primary key already exists)
+  if (error && !String(error.message || "").toLowerCase().includes("duplicate")) {
+    throw error;
+  }
+}
+
 // ==============================
 // STICKY MESSAGES
 // ==============================
