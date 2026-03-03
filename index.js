@@ -839,14 +839,10 @@ client.once("ready", async () => {
   );
   console.log("Global slash commands registered.");
 setTimeout(async () => {
-  try {
-    console.log("🧪 Forcing booster gift run (debug)...");
-    await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
-    console.log("🧪 Forced booster run finished.");
-  } catch (e) {
-    console.error("🧪 Forced booster run error:", e?.message || e);
-  }
-}, 10000); // runs 10 seconds after startup
+  console.log("🧪 Forcing booster gift run (debug)...");
+  await runMonthlyBoosterGift({ guildId: "1192712272469041152", tz: BOOST_TIMEZONE });
+  console.log("🧪 Forced booster run finished.");
+}, 10000);
 
   // ===== Ghosty Role Daily Pings =====
   const GHOSTY_CHANNEL_ID = "1301577002720952321";
@@ -1018,7 +1014,7 @@ cron.schedule(
       if (now < testAt) return;
 
       BOOST_TEST_DONE = true;
-      await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
+      await runMonthlyBoosterGift({ guildId: "1192712272469041152", tz: BOOST_TIMEZONE });
       console.log("✅ Booster TEST payout ran.");
     } catch (e) {
       console.error("Booster TEST payout error:", e?.message || e);
@@ -1032,7 +1028,7 @@ cron.schedule(
   "5 0 1 * *",
   async () => {
     try {
-      await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
+      await runMonthlyBoosterGift({ guildId: "1192712272469041152", tz: BOOST_TIMEZONE });
       console.log("✅ Monthly booster payout ran.");
     } catch (e) {
       console.error("Monthly booster payout error:", e?.message || e);
