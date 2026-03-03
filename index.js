@@ -944,7 +944,7 @@ async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const members = await guild.members.fetch().catch(() => null);
+  const members = await guild.members.fetch({ force: true }).catch(() => null);
   console.log("👥 members fetched:", members?.size);
 
   if (!members) {
