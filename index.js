@@ -34,6 +34,7 @@ const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 // The ONE channel you want /lock and /unlock to affect:
 const LOCK_CHANNEL_ID = "1469891401314603018";
 
+console.log("🎁 Monthly Booster Gift block loaded");
 // ===== Monthly Booster Gift =====
 const BOOSTER_ROLE_ID = "1193404745516339272";
 const BOOSTER_GIFT_CHANNEL_ID = "1262579520251105300";
@@ -837,6 +838,15 @@ client.once("ready", async () => {
     { body: COMMANDS }
   );
   console.log("Global slash commands registered.");
+setTimeout(async () => {
+  try {
+    console.log("🧪 Forcing booster gift run (debug)...");
+    await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
+    console.log("🧪 Forced booster run finished.");
+  } catch (e) {
+    console.error("🧪 Forced booster run error:", e?.message || e);
+  }
+}, 10000); // runs 10 seconds after startup
 
   // ===== Ghosty Role Daily Pings =====
   const GHOSTY_CHANNEL_ID = "1301577002720952321";
