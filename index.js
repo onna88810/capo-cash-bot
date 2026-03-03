@@ -34,6 +34,13 @@ const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 // The ONE channel you want /lock and /unlock to affect:
 const LOCK_CHANNEL_ID = "1469891401314603018";
 
+// ===== Monthly Booster Gift =====
+const BOOSTER_ROLE_ID = "1193404745516339272";
+const BOOSTER_GIFT_CHANNEL_ID = "1262579520251105300";
+const BOOSTER_GIFT_AMOUNT = 1000;
+const BOOSTER_GIFT_EMOJI = "<a:CC:1472329566289657890>";
+const BOOSTER_TIMEZONE = "America/Chicago";
+
 // ==============================
 // PRIVATE ROOMS (Ghosty Gambling)
 // ==============================
@@ -131,7 +138,9 @@ import {
   getSticky,
   upsertSticky,
   clearSticky,
-  updateStickyLastPosted
+  updateStickyLastPosted,
+  hasMonthlyBoosterGift,
+  markMonthlyBoosterGift
 } from "./db.js";
 import cron from "node-cron";
 import { Resvg } from "@resvg/resvg-js";
@@ -574,6 +583,7 @@ function bjBuildEmbed(cfg, state, { revealDealer = false, footerText = "" } = {}
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ],
@@ -815,6 +825,29 @@ async function applyBalanceChange({
   });
 }
 
+// ===== Monthly Booster Helpers =====
+function monthKeyInTz(tz = "America/Chicago") {
+  return DateTime.now().setZone(tz).toFormat("yyyy-LL");
+}
+
+async function hasMonthlyBoosterGift(guildId, userId, monthKey) {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("id")
+    .eq("guild_id", guildId)
+    .eq("user_id", userId)
+    .eq("type", "boost_monthly")
+    .eq("reason", `Monthly booster gift ${monthKey}`)
+    .limit(1);
+
+  if (error) {
+    console.error("hasMonthlyBoosterGift error:", error);
+    return false;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
 // ===== Ready / Command registration =====
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -903,6 +936,109 @@ cron.schedule("0 * * * *", async () => {
     console.error("Private room cleanup error:", e?.message || e);
   }
 });
+
+// ==============================
+// 🎁 Monthly Booster Gift (Role -> 1,000 CC + ping)
+// ==============================
+const BOOST_ROLE_ID = "1193404745516339272";
+const BOOST_CHANNEL_ID = "1262579520251105300";
+const BOOST_AMOUNT = 1000;
+const BOOST_TIMEZONE = "America/Chicago";
+
+function monthKeyInTz(tz = BOOST_TIMEZONE) {
+  // e.g. "2026-03"
+  return DateTime.now().setZone(tz).toFormat("yyyy-LL");
+}
+
+// helper: pay + announce (combined message)
+async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return;
+
+  // Pull full member list (requires GuildMembers intent + enabled in portal)
+  const members = await guild.members.fetch().catch(() => null);
+  if (!members) {
+    console.error("Booster gift: Could not fetch members. Is GuildMembers intent enabled?");
+    return;
+  }
+
+  const boosters = members.filter(m => m.roles.cache.has(BOOST_ROLE_ID));
+  if (!boosters.size) return;
+
+  const monthKey = monthKeyInTz(tz);
+  const paidMentions = [];
+
+  for (const m of boosters.values()) {
+    const already = await hasMonthlyBoosterGift(guild.id, m.id, monthKey);
+    if (already) continue;
+
+    const res = await applyBalanceChange({
+      guildId: guild.id,
+      userId: m.id,
+      amount: BOOST_AMOUNT,
+      type: "boost_monthly",
+      reason: `Monthly booster gift ${monthKey}`,
+      actorId: "system"
+    });
+
+    if (res?.ok) {
+      await markMonthlyBoosterGift(guild.id, m.id, monthKey);
+      paidMentions.push(`<@${m.id}>`);
+    }
+  }
+
+  if (!paidMentions.length) return;
+
+  const ch = await client.channels.fetch(BOOST_CHANNEL_ID).catch(() => null);
+  if (!ch || !ch.isTextBased()) return;
+
+  const msg =
+    `Thank you ${paidMentions.join(", ")} for boosting our server, ` +
+    `here is a gift from us to you **${BOOST_AMOUNT.toLocaleString("en-US")}**. ${CC_EMOJI}`;
+
+  await ch.send({ content: msg }).catch(() => {});
+}
+
+// ---------- TEST: Run at 1:00 PM Chicago on March 3 ----------
+let BOOST_TEST_DONE = false;
+
+const testAt = DateTime.fromObject(
+  { year: 2026, month: 3, day: 3, hour: 13, minute: 0, second: 0, millisecond: 0 },
+  { zone: BOOST_TIMEZONE }
+);
+
+cron.schedule(
+  "* * * * *", // checks every minute until it runs once
+  async () => {
+    try {
+      if (BOOST_TEST_DONE) return;
+
+      const now = DateTime.now().setZone(BOOST_TIMEZONE);
+      if (now < testAt) return;
+
+      BOOST_TEST_DONE = true;
+      await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
+      console.log("✅ Booster TEST payout ran.");
+    } catch (e) {
+      console.error("Booster TEST payout error:", e?.message || e);
+    }
+  },
+  { timezone: BOOST_TIMEZONE }
+);
+
+// ---------- REAL: Run on the 1st of every month at 12:05 AM Chicago ----------
+cron.schedule(
+  "5 0 1 * *",
+  async () => {
+    try {
+      await runMonthlyBoosterGift({ guildId: COMMAND_GUILD_ID, tz: BOOST_TIMEZONE });
+      console.log("✅ Monthly booster payout ran.");
+    } catch (e) {
+      console.error("Monthly booster payout error:", e?.message || e);
+    }
+  },
+  { timezone: BOOST_TIMEZONE }
+);
 
 // ===== AUTO RUMBLE PAYOUT =====
 client.on("messageCreate", async (message) => {
