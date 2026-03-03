@@ -952,7 +952,7 @@ async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
     return;
   }
 
-  const boosters = members.filter(m => m.roles.cache.has(BOOST_ROLE_ID));
+  const boosters = members.filter(m => !!m.premiumSince);
   console.log("🚀 boosters found:", boosters.size);
   if (!boosters.size) return;
 
