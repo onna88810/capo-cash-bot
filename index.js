@@ -929,20 +929,26 @@ function monthKeyInTz(tz = BOOST_TIMEZONE) {
 
 // helper: pay + announce (combined message)
 async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
+  console.log("🎁 Booster gift starting", guildId);
+
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  // Pull full member list (requires GuildMembers intent + enabled in portal)
   const members = await guild.members.fetch().catch(() => null);
+  console.log("👥 members fetched:", members?.size);
+
   if (!members) {
     console.error("Booster gift: Could not fetch members. Is GuildMembers intent enabled?");
     return;
   }
 
   const boosters = members.filter(m => m.roles.cache.has(BOOST_ROLE_ID));
+  console.log("🚀 boosters found:", boosters.size);
   if (!boosters.size) return;
 
   const monthKey = monthKeyInTz(tz);
+  console.log("🗓 monthKey:", monthKey);
+
   const paidMentions = [];
 
   for (const m of boosters.values()) {
@@ -958,11 +964,15 @@ async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
       actorId: "system"
     });
 
+    console.log("applyBalanceChange result:", m.id, res);
+
     if (res?.ok) {
       await markMonthlyBoosterGift(guild.id, m.id, monthKey);
       paidMentions.push(`<@${m.id}>`);
     }
   }
+
+  console.log("✅ paidMentions:", paidMentions.length, paidMentions);
 
   if (!paidMentions.length) return;
 
@@ -973,7 +983,11 @@ async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
     `Thank you ${paidMentions.join(", ")} for boosting our server, ` +
     `here is a gift from us to you **${BOOST_AMOUNT.toLocaleString("en-US")}**. ${CC_EMOJI}`;
 
-  await ch.send({ content: msg }).catch(() => {});
+  await ch.send({ content: msg }).catch((e) => {
+    console.error("❌ Booster gift send failed:", e?.message || e);
+  });
+
+  console.log("📨 Booster gift message sent in channel", BOOST_CHANNEL_ID);
 }
 
 // ---------- TEST: Run at 1:00 PM Chicago on March 3 ----------
