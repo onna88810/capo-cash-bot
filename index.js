@@ -830,24 +830,6 @@ function monthKeyInTz(tz = "America/Chicago") {
   return DateTime.now().setZone(tz).toFormat("yyyy-LL");
 }
 
-async function hasMonthlyBoosterGift(guildId, userId, monthKey) {
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("id")
-    .eq("guild_id", guildId)
-    .eq("user_id", userId)
-    .eq("type", "boost_monthly")
-    .eq("reason", `Monthly booster gift ${monthKey}`)
-    .limit(1);
-
-  if (error) {
-    console.error("hasMonthlyBoosterGift error:", error);
-    return false;
-  }
-
-  return (data?.length ?? 0) > 0;
-}
-
 // ===== Ready / Command registration =====
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
