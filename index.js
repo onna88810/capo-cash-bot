@@ -27,6 +27,7 @@ const LOCK_ROLE_IDS = [
   "1457169070452379680",
   "1457174938380402739"
 ];
+const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 // The ONE channel you want /lock and /unlock to affect:
 const LOCK_CHANNEL_ID = "1469891401314603018";
 
@@ -3047,43 +3048,58 @@ if (interaction.commandName === "private") {
       });
     }
 
-    // 🔒 LOCK / 🔓 UNLOCK (single channel only)
-    if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
-      const isLock = interaction.commandName === "lock";
+  // 🔒 LOCK / 🔓 UNLOCK (single channel only)
+if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
+  const isLock = interaction.commandName === "lock";
 
-      try {
-        const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
-        if (!channel || !channel.isTextBased()) {
-          return interaction.editReply("❌ Lock channel not found or not a text channel.");
-        }
+  try {
+    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+    if (!channel || !channel.isTextBased()) {
+      return interaction.editReply("❌ Lock channel not found or not a text channel.");
+    }
 
-        for (const roleId of LOCK_ROLE_IDS) {
-          if (isLock) {
-            await channel.permissionOverwrites.edit(roleId, {
-              SendMessages: false,
-              SendMessagesInThreads: false
-            });
-          } else {
-            await channel.permissionOverwrites.edit(roleId, {
-              SendMessages: true,
-              SendMessagesInThreads: true,
-              EmbedLinks: true,
-              AttachFiles: true,
-              ReadMessageHistory: true
-            });
-          }
-        }
-
-        return interaction.editReply(
-          isLock
-            ? `🔒 The arena is now locked.`
-            : `🔓 The arena is now open.`
-        );
-      } catch (e) {
-        console.error("Lock/unlock error:", e?.message || e);
-        return interaction.editReply("⚠️ Failed to update channel permissions.");
+    // ===== FULL LOCK ROLES (L/N/S) =====
+    for (const roleId of FULL_LOCK_ROLE_IDS) {
+      if (isLock) {
+        await channel.permissionOverwrites.edit(roleId, {
+          SendMessages: false,
+          SendMessagesInThreads: false,
+          AddReactions: false,
+          UseExternalEmojis: false
+        });
+      } else {
+        // reset to inherit defaults
+        await channel.permissionOverwrites.edit(roleId, {
+          SendMessages: null,
+          SendMessagesInThreads: null,
+          AddReactions: null,
+          UseExternalEmojis: null
+        });
       }
     }
+
+    // ===== EMOJI-ONLY LOCK ROLE (GH) =====
+    if (isLock) {
+      await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
+        AddReactions: false,
+        UseExternalEmojis: false
+      });
+    } else {
+      // reset to inherit defaults
+      await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
+        AddReactions: null,
+        UseExternalEmojis: null
+      });
+    }
+
+    return interaction.editReply(
+      isLock ? "🔒 The arena is now locked." : "🔓 The arena is now open."
+    );
+  } catch (e) {
+    console.error("Lock/unlock error:", e?.message || e);
+    return interaction.editReply("⚠️ Failed to update channel permissions.");
+  }
+}
 
     // BALANCE
     if (interaction.commandName === "balance") {
