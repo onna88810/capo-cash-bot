@@ -3082,18 +3082,20 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     }
 
     // ===== EMOJI-ONLY LOCK ROLE (GH) =====
-    if (isLock) {
-      await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
-        AddReactions: false,
-        UseExternalEmojis: false
-      });
-    } else {
-      // reset to inherit defaults
-      await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
-        AddReactions: null,
-        UseExternalEmojis: null
-      });
-    }
+if (isLock) {
+  await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
+    AddReactions: false,
+    UseExternalEmojis: false,
+    UseExternalStickers: false
+  });
+} else {
+  // ✅ force allow (do NOT set null)
+  await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
+    AddReactions: true,
+    UseExternalEmojis: true,
+    UseExternalStickers: true
+  });
+}
 
     return interaction.editReply(
       isLock ? "🔒 The arena is now locked." : "🔓 The arena is now open."
