@@ -838,11 +838,6 @@ client.once("ready", async () => {
     { body: COMMANDS }
   );
   console.log("Global slash commands registered.");
-setTimeout(async () => {
-  console.log("🧪 Forcing booster gift run (debug)...");
-  await runMonthlyBoosterGift({ guildId: "1192712272469041152", tz: BOOST_TIMEZONE });
-  console.log("🧪 Forced booster run finished.");
-}, 10000);
 
   // ===== Ghosty Role Daily Pings =====
   const GHOSTY_CHANNEL_ID = "1301577002720952321";
@@ -995,33 +990,6 @@ async function runMonthlyBoosterGift({ guildId, tz = BOOST_TIMEZONE } = {}) {
 
   console.log("📨 Booster gift message sent in channel", BOOST_CHANNEL_ID);
 }
-
-// ---------- TEST: Run at 1:00 PM Chicago on March 3 ----------
-let BOOST_TEST_DONE = false;
-
-const testAt = DateTime.fromObject(
-  { year: 2026, month: 3, day: 3, hour: 13, minute: 0, second: 0, millisecond: 0 },
-  { zone: BOOST_TIMEZONE }
-);
-
-cron.schedule(
-  "* * * * *", // checks every minute until it runs once
-  async () => {
-    try {
-      if (BOOST_TEST_DONE) return;
-
-      const now = DateTime.now().setZone(BOOST_TIMEZONE);
-      if (now < testAt) return;
-
-      BOOST_TEST_DONE = true;
-      await runMonthlyBoosterGift({ guildId: "1192712272469041152", tz: BOOST_TIMEZONE });
-      console.log("✅ Booster TEST payout ran.");
-    } catch (e) {
-      console.error("Booster TEST payout error:", e?.message || e);
-    }
-  },
-  { timezone: BOOST_TIMEZONE }
-);
 
 // ---------- REAL: Run on the 1st of every month at 12:05 AM Chicago ----------
 cron.schedule(
