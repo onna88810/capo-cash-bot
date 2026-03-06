@@ -125,35 +125,33 @@ export const COMMANDS = [
 new SlashCommandBuilder()
   .setName("sticky")
   .setDescription("Create a sticky message in this channel.")
-
-  .addSubcommand(sub =>
-    sub
-      .setName("message")
-      .setDescription("Create a normal sticky message")
-      .addStringOption(o =>
-        o
-          .setName("text")
-          .setDescription("Message to repost as sticky")
-          .setRequired(true)
+  .addStringOption((o) =>
+    o
+      .setName("type")
+      .setDescription("Choose the sticky type")
+      .setRequired(true)
+      .addChoices(
+        { name: "message", value: "message" },
+        { name: "embed", value: "embed" }
       )
   )
-
-  .addSubcommand(sub =>
-    sub
-      .setName("embed")
-      .setDescription("Create an embed sticky message")
-      .addStringOption(o =>
-        o
-          .setName("title")
-          .setDescription("Embed title")
-          .setRequired(true)
-      )
-      .addStringOption(o =>
-        o
-          .setName("description")
-          .setDescription("Embed description")
-          .setRequired(true)
-      )
+  .addStringOption((o) =>
+    o
+      .setName("text")
+      .setDescription("Message text for a normal sticky")
+      .setRequired(false)
+  )
+  .addStringOption((o) =>
+    o
+      .setName("title")
+      .setDescription("Embed title")
+      .setRequired(false)
+  )
+  .addStringOption((o) =>
+    o
+      .setName("description")
+      .setDescription("Embed description")
+      .setRequired(false)
   ),
 
 new SlashCommandBuilder()
