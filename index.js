@@ -2848,7 +2848,20 @@ if (interaction.commandName === "sticky") {
   const guildId = interaction.guildId;
   const channelId = interaction.channelId;
   const authorId = interaction.user.id;
-  const sub = interaction.options.getSubcommand();
+
+  const type = interaction.options.getString("type", true);
+  const text = interaction.options.getString("text");
+  const title = interaction.options.getString("title");
+  const description = interaction.options.getString("description");
+
+  // validation
+  if (type === "message" && !text) {
+    return interaction.editReply("❌ You need to fill in the `text` option for a message sticky.");
+  }
+
+  if (type === "embed" && (!title || !description)) {
+    return interaction.editReply("❌ You need to fill in both `title` and `description` for an embed sticky.");
+  }
 
   // delete old sticky message if it exists
   const existing = await getSticky(guildId, channelId);
@@ -2858,10 +2871,8 @@ if (interaction.commandName === "sticky") {
     if (oldMsg) await oldMsg.delete().catch(() => {});
   }
 
-  // ---------- /sticky message ----------
-  if (sub === "message") {
-    const text = interaction.options.getString("text", true);
-
+  // message sticky
+  if (type === "message") {
     const posted = await interaction.channel.send({ content: text });
 
     await upsertSticky({
@@ -2879,11 +2890,8 @@ if (interaction.commandName === "sticky") {
     return interaction.editReply("✅ Sticky message set.");
   }
 
-  // ---------- /sticky embed ----------
-  if (sub === "embed") {
-    const title = interaction.options.getString("title", true);
-    const description = interaction.options.getString("description", true);
-
+  // embed sticky
+  if (type === "embed") {
     const embed = new EmbedBuilder()
       .setTitle(title)
       .setDescription(description)
@@ -2905,6 +2913,8 @@ if (interaction.commandName === "sticky") {
 
     return interaction.editReply("✅ Sticky embed set.");
   }
+
+  return interaction.editReply("❌ Invalid sticky type.");
 }
 
 if (interaction.commandName === "unstick") {
@@ -2933,7 +2943,7 @@ if (interaction.commandName === "unstick") {
     if (oldMsg) await oldMsg.delete().catch(() => {});
   }
 
-  // fallback: delete the most recent sticky-looking message from the bot (in case DB id is stale)
+  // fallback: delete the most recent sticky-looking message from the bot
   const recent = await interaction.channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (recent) {
     const botMsgs = [...recent.values()].filter(m => m.author?.id === client.user.id);
