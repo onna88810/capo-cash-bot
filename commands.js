@@ -124,13 +124,13 @@ export const COMMANDS = [
 
 new SlashCommandBuilder()
   .setName("sticky")
-  .setDescription("Create a sticky message in this channel (staff only).")
+  .setDescription("Create a sticky message in this channel.")
 
-  .addSubcommand((sub) =>
+  .addSubcommand(sub =>
     sub
       .setName("message")
       .setDescription("Create a normal sticky message")
-      .addStringOption((o) =>
+      .addStringOption(o =>
         o
           .setName("text")
           .setDescription("Message to repost as sticky")
@@ -138,17 +138,17 @@ new SlashCommandBuilder()
       )
   )
 
-  .addSubcommand((sub) =>
+  .addSubcommand(sub =>
     sub
       .setName("embed")
       .setDescription("Create an embed sticky message")
-      .addStringOption((o) =>
+      .addStringOption(o =>
         o
           .setName("title")
           .setDescription("Embed title")
           .setRequired(true)
       )
-      .addStringOption((o) =>
+      .addStringOption(o =>
         o
           .setName("description")
           .setDescription("Embed description")
@@ -158,7 +158,7 @@ new SlashCommandBuilder()
 
 new SlashCommandBuilder()
   .setName("unstick")
-  .setDescription("Remove the sticky message in this channel (staff only)."),
+  .setDescription("Remove the sticky message in this channel."),
 
   // RUMBLE (admin)
   new SlashCommandBuilder()
