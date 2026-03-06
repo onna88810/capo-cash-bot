@@ -49,6 +49,7 @@ const GHOSTY_PRIVATE_HUB_CHANNEL_ID = "1462504562995892376";
 const PRIVATE_ROOM_PARENT_CATEGORY_ID = "1301576482644295731";
 const PRIVATE_ROOM_IDLE_DAYS = 3;
 const PRIVATE_ROOM_TTL_MS = PRIVATE_ROOM_IDLE_DAYS * 24 * 60 * 60 * 1000;
+const PRV_CREATE_BTN_PREFIX = "pr:ghosty_gambling:create";
 const PRV_CREATE_BTN = "pr:ghosty_gambling:create";
 const PRIVATE_HUB_TYPE = "ghosty_gambling";
 const PRIVATE_GHOSTY_CATEGORY_ID = PRIVATE_ROOM_PARENT_CATEGORY_ID;
@@ -57,6 +58,11 @@ const PRV_REMOVE_BTN = "pr:ghosty:remove";
 const PRV_ADD_MODAL = "pr:ghosty:add_modal";
 const PRV_REMOVE_MODAL = "pr:ghosty:remove_modal";
 const PRIVATE_EMBED_THROTTLE = new Map(); // channelId -> lastEditMs
+// Step 1) Helper: use the category of the channel where the panel button is clicked
+function getPrivateRoomCategoryId(interaction) {
+  // parentId = category id (or null if the channel isn't in a category)
+  return interaction.channel?.parentId || null;
+}
 
 function buildPrivateRoomControlsEmbed({ ownerId, lastActivityIso }) {
   const last = lastActivityIso ? new Date(lastActivityIso) : new Date();
@@ -1568,7 +1574,7 @@ if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
 
   const created = await interaction.guild.channels.create({
     name: channelName,
-    parent: PRIVATE_GHOSTY_CATEGORY_ID,
+    parent: getPrivateRoomCategoryId(interaction) || PRIVATE_GHOSTY_CATEGORY_ID,
     type: ChannelType.GuildText,
     reason: `Ghosty private room for ${interaction.user.tag}`,
     permissionOverwrites: [
@@ -1613,7 +1619,8 @@ if (interaction.isButton() && interaction.customId === PRV_CREATE_BTN) {
   });
 
 try {
-  await created.setParent(PRIVATE_GHOSTY_CATEGORY_ID, { lockPermissions: false });
+  const parentId = getPrivateRoomCategoryId(interaction) || PRIVATE_GHOSTY_CATEGORY_ID;
+await created.setParent(parentId, { lockPermissions: false });
 } catch (err) {
   console.error("setParent failed:", err);
 }
@@ -2920,14 +2927,12 @@ if (interaction.commandName === "unstick") {
   return interaction.editReply("✅ Sticky removed.");
 }
 
-
 // ---------- /private ghosty gambling ----------
 if (interaction.commandName === "private") {
   const group = interaction.options.getSubcommandGroup();
   const sub = interaction.options.getSubcommand();
 
   if (group === "ghosty" && sub === "gambling") {
-    const HUB_CHANNEL_ID = "1462504562995892376";
 
     // Optional: lock to staff/admin only
     // If you want anyone to be able to run it, remove this check.
@@ -2941,9 +2946,10 @@ if (interaction.commandName === "private") {
       return interaction.editReply("❌ Staff only.");
     }
 
-    const hub = await interaction.client.channels.fetch(HUB_CHANNEL_ID);
+    // ✅ Post the panel in the channel where the command is run
+    const hub = interaction.channel;
     if (!hub || !hub.isTextBased()) {
-      return interaction.editReply("❌ Hub channel not found or not text-based.");
+      return interaction.editReply("❌ This command must be used in a text channel.");
     }
 
     const embed = new EmbedBuilder()
