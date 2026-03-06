@@ -119,17 +119,41 @@ export const COMMANDS = [
     .setDescription("Unlock the current channel (restore Send Messages for configured roles)"),
 
 // ==============================
-// STICKY COMMANDS (UPDATED)
+// STICKY COMMANDS
 // ==============================
 
 new SlashCommandBuilder()
   .setName("sticky")
-  .setDescription("Post a sticky message in this channel (staff only).")
-  .addStringOption((o) =>
-    o
+  .setDescription("Create a sticky message in this channel (staff only).")
+
+  .addSubcommand((sub) =>
+    sub
       .setName("message")
-      .setDescription("The message to keep pinned/reposted")
-      .setRequired(true)
+      .setDescription("Create a normal sticky message")
+      .addStringOption((o) =>
+        o
+          .setName("text")
+          .setDescription("Message to repost as sticky")
+          .setRequired(true)
+      )
+  )
+
+  .addSubcommand((sub) =>
+    sub
+      .setName("embed")
+      .setDescription("Create an embed sticky message")
+      .addStringOption((o) =>
+        o
+          .setName("title")
+          .setDescription("Embed title")
+          .setRequired(true)
+      )
+      .addStringOption((o) =>
+        o
+          .setName("description")
+          .setDescription("Embed description")
+          .setRequired(true)
+      )
   ),
 
 new SlashCommandBuilder()
