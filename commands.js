@@ -125,29 +125,29 @@ export const COMMANDS = [
 new SlashCommandBuilder()
   .setName("sticky")
   .setDescription("Create a sticky message in this channel.")
-  .addStringOption((o) =>
+  .addStringOption(o =>
     o
       .setName("type")
-      .setDescription("Choose the sticky type")
+      .setDescription("Type of sticky")
       .setRequired(true)
       .addChoices(
         { name: "message", value: "message" },
         { name: "embed", value: "embed" }
       )
   )
-  .addStringOption((o) =>
+  .addStringOption(o =>
     o
       .setName("text")
-      .setDescription("Message text for a normal sticky")
+      .setDescription("Sticky text for message type")
       .setRequired(false)
   )
-  .addStringOption((o) =>
+  .addStringOption(o =>
     o
       .setName("title")
       .setDescription("Embed title")
       .setRequired(false)
   )
-  .addStringOption((o) =>
+  .addStringOption(o =>
     o
       .setName("description")
       .setDescription("Embed description")
