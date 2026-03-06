@@ -2848,8 +2848,7 @@ if (interaction.commandName === "sticky") {
   const guildId = interaction.guildId;
   const channelId = interaction.channelId;
   const authorId = interaction.user.id;
-
-  const msg = interaction.options.getString("message", true);
+  const sub = interaction.options.getSubcommand();
 
   // delete old sticky message if it exists
   const existing = await getSticky(guildId, channelId);
@@ -2859,22 +2858,53 @@ if (interaction.commandName === "sticky") {
     if (oldMsg) await oldMsg.delete().catch(() => {});
   }
 
-  // post new sticky
-  const posted = await interaction.channel.send({ content: msg });
+  // ---------- /sticky message ----------
+  if (sub === "message") {
+    const text = interaction.options.getString("text", true);
 
-  await upsertSticky({
-    guild_id: guildId,
-    channel_id: channelId,
-    type: "message",
-    content: msg,
-    embed_title: null,
-    embed_description: null,
-    sticky_message_id: posted.id,
-    last_posted_at: new Date().toISOString(),
-    created_by: authorId
-  });
+    const posted = await interaction.channel.send({ content: text });
 
-  return interaction.editReply("✅ Sticky message set.");
+    await upsertSticky({
+      guild_id: guildId,
+      channel_id: channelId,
+      type: "message",
+      content: text,
+      embed_title: null,
+      embed_description: null,
+      sticky_message_id: posted.id,
+      last_posted_at: new Date().toISOString(),
+      created_by: authorId
+    });
+
+    return interaction.editReply("✅ Sticky message set.");
+  }
+
+  // ---------- /sticky embed ----------
+  if (sub === "embed") {
+    const title = interaction.options.getString("title", true);
+    const description = interaction.options.getString("description", true);
+
+    const embed = new EmbedBuilder()
+      .setTitle(title)
+      .setDescription(description)
+      .setTimestamp(new Date());
+
+    const posted = await interaction.channel.send({ embeds: [embed] });
+
+    await upsertSticky({
+      guild_id: guildId,
+      channel_id: channelId,
+      type: "embed",
+      content: null,
+      embed_title: title,
+      embed_description: description,
+      sticky_message_id: posted.id,
+      last_posted_at: new Date().toISOString(),
+      created_by: authorId
+    });
+
+    return interaction.editReply("✅ Sticky embed set.");
+  }
 }
 
 if (interaction.commandName === "unstick") {
