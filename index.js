@@ -2858,10 +2858,6 @@ if (interaction.commandName === "sticky") {
     return interaction.editReply("❌ For a message sticky, fill in the `text` field.");
   }
 
-  if (type === "embed" && !title && !description) {
-    return interaction.editReply("❌ For an embed sticky, fill in at least a title or description.");
-  }
-
   // delete old sticky message if it exists
   const existing = await getSticky(guildId, channelId);
   if (existing?.sticky_message_id) {
