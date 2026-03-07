@@ -2899,16 +2899,16 @@ if (interaction.commandName === "sticky") {
     const posted = await interaction.channel.send({ embeds: [embed] });
 
     await upsertSticky({
-      guild_id: guildId,
-      channel_id: channelId,
-      type: "embed",
-      content: null,
-      embed_title: title || null,
-      embed_description: description || null,
-      sticky_message_id: posted.id,
-      last_posted_at: new Date().toISOString(),
-      created_by: authorId
-    });
+  guild_id: guildId,
+  channel_id: channelId,
+  type: "embed",
+  content: "",
+  embed_title: title || null,
+  embed_description: description || null,
+  sticky_message_id: posted.id,
+  last_posted_at: new Date().toISOString(),
+  created_by: authorId
+});
 
     return interaction.editReply("✅ Sticky embed set.");
   }
