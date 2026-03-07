@@ -1173,49 +1173,56 @@ client.on("messageCreate", async (message) => {
 // ==============================
 // 📌 STICKY: Repost on activity
 // ==============================
-
-// per-channel throttle so we don't spam if chat is flying
 const STICKY_THROTTLE = new Map(); // channelId -> lastMs
-const STICKY_MIN_MS = 3000; // 3s is "immediate enough" but prevents loops
+const STICKY_MIN_MS = 500;
 
 client.on("messageCreate", async (message) => {
   try {
     if (!message.guild) return;
+    if (message.author.bot) return;
 
     const guildId = message.guild.id;
     const channelId = message.channel.id;
 
-    // ignore if the message IS the sticky message itself (prevents loops)
     const sticky = await getSticky(guildId, channelId);
     if (!sticky) return;
 
+    // ignore if the sticky message itself somehow triggered this
     if (sticky.sticky_message_id && message.id === sticky.sticky_message_id) return;
 
-    // throttle
     const last = STICKY_THROTTLE.get(channelId) || 0;
     if (Date.now() - last < STICKY_MIN_MS) return;
     STICKY_THROTTLE.set(channelId, Date.now());
 
-    // delete old sticky message
+    // delete the old sticky first
     if (sticky.sticky_message_id) {
-      const old = await message.channel.messages.fetch(sticky.sticky_message_id).catch(() => null);
-      if (old) await old.delete().catch(() => {});
+      const oldMsg = await message.channel.messages
+        .fetch(sticky.sticky_message_id)
+        .catch(() => null);
+
+      if (oldMsg) {
+        await oldMsg.delete().catch((err) => {
+          console.error("Sticky old delete failed:", err?.message || err);
+        });
+      }
     }
 
-    // repost
+    // repost it at the bottom
     let posted;
+
     if (sticky.type === "embed") {
-      const embed = new EmbedBuilder()
-        .setTitle(sticky.embed_title || "Sticky")
-        .setDescription(sticky.embed_description || "")
-        .setTimestamp(new Date());
+      const embed = new EmbedBuilder().setTimestamp(new Date());
+
+      if (sticky.embed_title) embed.setTitle(sticky.embed_title);
+      if (sticky.embed_description) embed.setDescription(sticky.embed_description);
 
       posted = await message.channel.send({ embeds: [embed] });
     } else {
-      posted = await message.channel.send({ content: sticky.content || "" });
+      posted = await message.channel.send({
+        content: sticky.content || ""
+      });
     }
 
-    // update DB with new sticky message id + last posted
     await upsertSticky({
       guild_id: guildId,
       channel_id: channelId,
@@ -1227,8 +1234,10 @@ client.on("messageCreate", async (message) => {
       last_posted_at: new Date().toISOString(),
       created_by: sticky.created_by
     });
+
+    console.log(`✅ Sticky reposted in ${channelId}`);
   } catch (err) {
-    console.error("Sticky repost error:", err?.message || err);
+    console.error("Sticky repost error FULL:", err);
   }
 });
 
