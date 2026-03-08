@@ -848,46 +848,68 @@ client.once("ready", async () => {
   // ===== Ghosty Role Daily Pings =====
   const GHOSTY_CHANNEL_ID = "1301577002720952321";
   const GHOSTY_ROLE_ID = "1301631283868336168";
-  const TIMEZONE = "America/Chicago"; // CST/CDT auto handled
+const TIMEZONE = "America/Chicago";
 
-  // ✅ UPDATED CST times (no duplicates)
-  const dailyTimes = [
-    "00:06","01:07","02:08","03:09",
-    "04:01","04:10","05:11","06:12","06:21",
-    "07:13","07:31","07:37",
-    "08:14","08:41",
-    "09:15","09:51",
-    "10:16","11:17",
-    "12:18","13:19",
-    "14:02","14:20",
-    "15:12","15:21",
-    "16:22","17:23","17:32",
-    "18:00",
-    "19:01","19:11",
-    "20:02","20:22",
-    "21:03","21:33",
-    "22:04","22:44",
-    "23:05","23:55"
-  ];
+// October–March (left column)
+const standardTimes = [
+  "00:06","01:07","02:08","03:09",
+  "04:01","04:10","05:11","06:12","06:21",
+  "07:13","07:31","07:37",
+  "08:14","08:41",
+  "09:15","09:51",
+  "10:16","11:17",
+  "12:18","13:19",
+  "14:02","14:20",
+  "15:12","15:21",
+  "16:22","17:23","17:32",
+  "18:00",
+  "19:01","19:11",
+  "20:02","20:22",
+  "21:03","21:33",
+  "22:04","22:44",
+  "23:05","23:55"
+];
 
-  dailyTimes.forEach((time) => {
-    const [hour, minute] = time.split(":");
+// March–October (right column)
+const dstTimes = [
+  "01:06","02:07","03:08","04:09",
+  "05:01","05:10","06:11","07:12","07:21",
+  "08:13","08:31","08:37",
+  "09:14","09:41",
+  "10:15","10:51",
+  "11:16","12:17",
+  "13:18","14:19",
+  "15:02","15:20",
+  "16:12","16:21",
+  "17:22","18:23","18:32",
+  "19:00",
+  "20:01","20:11",
+  "21:02","21:22",
+  "22:03","22:33",
+  "23:04","23:44"
+];
 
-    cron.schedule(
-      `${minute} ${hour} * * *`,
-      async () => {
-        try {
-          const channel = await client.channels.fetch(GHOSTY_CHANNEL_ID);
-          if (!channel || !channel.isTextBased()) return;
+const nowChicago = DateTime.now().setZone(TIMEZONE);
+const dailyTimes = nowChicago.isInDST ? dstTimes : standardTimes;
 
-          await channel.send(`<@&${GHOSTY_ROLE_ID}>`);
-        } catch (err) {
-          console.error("Ghosty ping error:", err);
-        }
-      },
-      { timezone: TIMEZONE }
-    );
-  });
+dailyTimes.forEach((time) => {
+  const [hour, minute] = time.split(":");
+
+  cron.schedule(
+    `${minute} ${hour} * * *`,
+    async () => {
+      try {
+        const channel = await client.channels.fetch(GHOSTY_CHANNEL_ID);
+        if (!channel || !channel.isTextBased()) return;
+
+        await channel.send(`<@&${GHOSTY_ROLE_ID}>`);
+      } catch (err) {
+        console.error("Ghosty ping error:", err);
+      }
+    },
+    { timezone: TIMEZONE }
+  );
+});
 
   console.log("👻 Ghosty role pings scheduled.");
 });
