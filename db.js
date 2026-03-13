@@ -229,3 +229,119 @@ export async function markPrivateRoomDeleted(channelId) {
 
   if (error) throw error;
 }
+// ==============================
+// KLEPTO / PICKPOCKET
+// ==============================
+
+export async function getPickpocketState(guildId, userId) {
+  const { data, error } = await supabase
+    .from("klepto_users")
+    .select("*")
+    .eq("guild_id", guildId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data || {
+    guild_id: guildId,
+    user_id: userId,
+    last_pickpocket_at: null
+  };
+}
+
+export async function setPickpocketState(guildId, userId, iso) {
+  const { error } = await supabase
+    .from("klepto_users")
+    .upsert(
+      {
+        guild_id: guildId,
+        user_id: userId,
+        last_pickpocket_at: iso
+      },
+      { onConflict: "guild_id,user_id" }
+    );
+
+  if (error) throw error;
+}
+
+export async function getKleptoInventory(guildId, userId) {
+  const { data, error } = await supabase
+    .from("klepto_inventory")
+    .select("*")
+    .eq("guild_id", guildId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data || {
+    guild_id: guildId,
+    user_id: userId,
+    gloves_uses: 0,
+    mask_count: 0,
+    lockpick_uses: 0
+  };
+}
+
+export async function addKleptoItem(guildId, userId, itemId, amount) {
+  const inv = await getKleptoInventory(guildId, userId);
+
+  const patch = {
+    guild_id: guildId,
+    user_id: userId,
+    gloves_uses: Number(inv.gloves_uses || 0),
+    mask_count: Number(inv.mask_count || 0),
+    lockpick_uses: Number(inv.lockpick_uses || 0)
+  };
+
+  if (itemId === "gloves") patch.gloves_uses += amount;
+  if (itemId === "mask") patch.mask_count += amount;
+  if (itemId === "lockpick") patch.lockpick_uses += amount;
+
+  const { error } = await supabase
+    .from("klepto_inventory")
+    .upsert(patch, { onConflict: "guild_id,user_id" });
+
+  if (error) throw error;
+}
+
+export async function useKleptoItem(guildId, userId, itemId, amount = 1) {
+  const inv = await getKleptoInventory(guildId, userId);
+
+  const patch = {
+    guild_id: guildId,
+    user_id: userId,
+    gloves_uses: Math.max(0, Number(inv.gloves_uses || 0)),
+    mask_count: Math.max(0, Number(inv.mask_count || 0)),
+    lockpick_uses: Math.max(0, Number(inv.lockpick_uses || 0))
+  };
+
+  if (itemId === "gloves") {
+    patch.gloves_uses = Math.max(0, patch.gloves_uses - amount);
+  }
+
+  if (itemId === "mask") {
+    patch.mask_count = Math.max(0, patch.mask_count - amount);
+  }
+
+  if (itemId === "lockpick") {
+    patch.lockpick_uses = Math.max(0, patch.lockpick_uses - amount);
+  }
+
+  const { error } = await supabase
+    .from("klepto_inventory")
+    .upsert(patch, { onConflict: "guild_id,user_id" });
+
+  if (error) throw error;
+}
+
+export async function hasKleptoItem(guildId, userId, itemId) {
+  const inv = await getKleptoInventory(guildId, userId);
+
+  if (itemId === "gloves") return Number(inv.gloves_uses || 0) > 0;
+  if (itemId === "mask") return Number(inv.mask_count || 0) > 0;
+  if (itemId === "lockpick") return Number(inv.lockpick_uses || 0) > 0;
+
+  return false;
+}
