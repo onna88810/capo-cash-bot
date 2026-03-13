@@ -3499,6 +3499,12 @@ if (interaction.commandName === "inventory") {
 
 // ---------- /klepto ----------
 if (interaction.commandName === "klepto") {
+  const member = interaction.member;
+
+return interaction.editReply({
+  content: "🚫 Only **Bandits** can attempt a klepto drop."
+});
+}
   if (!kleptoDropActive || Date.now() > kleptoDropEndsAt) {
     try {
       if (interaction.deferred || interaction.replied) {
