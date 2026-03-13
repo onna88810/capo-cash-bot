@@ -1143,6 +1143,7 @@ dailyTimes.forEach((time) => {
     if (kleptoDropActive) return;
     await startKleptoDrop();
   }, KLEPTO_DROP_INTERVAL_MS);
+  });
   
 // ===== PRIVATE ROOMS CLEANUP (every hour) =====
 cron.schedule("0 * * * *", async () => {
