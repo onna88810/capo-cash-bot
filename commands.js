@@ -22,6 +22,26 @@ export const COMMANDS = [
     .setName("weekly")
     .setDescription("Claim your weekly Capo Cash"),
 
+  // SHOP
+  new SlashCommandBuilder()
+    .setName("shop")
+    .setDescription("Open the Klepto item shop"),
+
+  // INVENTORY
+  new SlashCommandBuilder()
+    .setName("inventory")
+    .setDescription("View your Klepto items"),
+
+  // KLEPTO
+  new SlashCommandBuilder()
+    .setName("klepto")
+    .setDescription("Attempt a steal during a live Klepto drop"),
+
+  // PICKPOCKET
+  new SlashCommandBuilder()
+    .setName("pickpocket")
+    .setDescription("Play the pickpocket mini-game"),
+    
   // GIVE
   new SlashCommandBuilder()
     .setName("give")
