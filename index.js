@@ -1520,7 +1520,7 @@ const SYMBOL_TO_ICON_FILE = {
 // ---------- DataURI cache (optional; useful if you still embed PNGs into SVG elsewhere)
 const ICON_DATAURI_CACHE = new Map(); // symbolId -> dataUri
 
-export async function getSymbolDataUri(symbolId) {
+ async function getSymbolDataUri(symbolId) {
   const cached = ICON_DATAURI_CACHE.get(symbolId);
   if (cached) return cached;
 
@@ -1544,7 +1544,7 @@ export async function getSymbolDataUri(symbolId) {
 // ---------- Loaded Image cache (for canvas/GIF rendering)
 const ICON_IMAGE_CACHE = new Map(); // symbolId -> loaded Image
 
-export async function getSymbolImage(symbolId) {
+async function getSymbolImage(symbolId) {
   const cached = ICON_IMAGE_CACHE.get(symbolId);
   if (cached) return cached;
 
@@ -1571,7 +1571,7 @@ export async function getSymbolImage(symbolId) {
  * finalGrid is 3x3 of symbol IDs: grid[row][col]
  * symbolPool is array like BASE_SYMBOLS or [...BASE_SYMBOLS, CAPO_SYMBOL] (objects with .id)
  */
-export async function buildSlotsSpinGif(
+ async function buildSlotsSpinGif(
   finalGrid,
   symbolPool,
   {
