@@ -42,6 +42,19 @@ const BOOSTER_GIFT_AMOUNT = 1000;
 const BOOSTER_GIFT_EMOJI = "<a:CC:1472329566289657890>";
 const BOOSTER_TIMEZONE = "America/Chicago";
 
+// ===============================
+// KLEPTO SYSTEM
+// ===============================
+const BANDITS_ROLE_ID = "1481896783377465344";
+const KLEPTO_CHANNEL_ID = "1393270443175055440";
+
+const KLEPTO_DROP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const KLEPTO_DROP_DURATION_MS = 60 * 1000; // 60 seconds
+
+let kleptoDropActive = false;
+let kleptoDropEndsAt = 0;
+const kleptoParticipants = new Set();
+
 // ==============================
 // PRIVATE ROOMS (Ghosty Gambling)
 // ==============================
@@ -147,7 +160,13 @@ import {
   clearSticky,
   updateStickyLastPosted,
   hasMonthlyBoosterGift,
-  markMonthlyBoosterGift
+  markMonthlyBoosterGift,
+  getPickpocketState,
+  setPickpocketState,
+  getKleptoInventory,
+  addKleptoItem,
+  useKleptoItem,
+  hasKleptoItem
 } from "./db.js";
 import cron from "node-cron";
 import { Resvg } from "@resvg/resvg-js";
@@ -832,6 +851,175 @@ async function applyBalanceChange({
   });
 }
 
+// ==============================
+// 🕵️ KLEPTO HELPERS
+// ==============================
+const PICKPOCKET_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 hours
+
+const KLEPTO_ITEMS = {
+  gloves: { id: "gloves", name: "Gloves", price: 1000, uses: 3 },
+  mask: { id: "mask", name: "Mask", price: 2500, uses: 1 },
+  lockpick: { id: "lockpick", name: "Lockpick", price: 5000, uses: 2 }
+};
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function buildKleptoShopEmbed(cfg, inv = {}) {
+  return new EmbedBuilder()
+    .setTitle("🛒 Klepto Shop")
+    .setDescription(
+      `Use ${cfg.currency_name} to buy gear for **/pickpocket**.\n` +
+      `These items **do not apply to /klepto drops**.\n\n` +
+      `**🧤 Gloves — 1,000 ${cfg.currency_name}**\n` +
+      `Improves loot quality\nUses: 3\n\n` +
+      `**😷 Mask — 2,500 ${cfg.currency_name}**\n` +
+      `Blocks one caught penalty\nUses: 1\n\n` +
+      `**🔓 Lockpick — 5,000 ${cfg.currency_name}**\n` +
+      `Required for locked targets\nUses: 2\n\n` +
+      `**Inventory**\n` +
+      `🧤 Gloves: **${Number(inv.gloves_uses || 0)}**\n` +
+      `😷 Mask: **${Number(inv.mask_count || 0)}**\n` +
+      `🔓 Lockpick: **${Number(inv.lockpick_uses || 0)}**`
+    )
+    .setTimestamp(new Date());
+}
+
+function kleptoShopButtons() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("kp:buy:gloves")
+        .setLabel("Buy Gloves")
+        .setStyle(ButtonStyle.Primary),
+
+      new ButtonBuilder()
+        .setCustomId("kp:buy:mask")
+        .setLabel("Buy Mask")
+        .setStyle(ButtonStyle.Secondary),
+
+      new ButtonBuilder()
+        .setCustomId("kp:buy:lockpick")
+        .setLabel("Buy Lockpick")
+        .setStyle(ButtonStyle.Success),
+
+      new ButtonBuilder()
+        .setCustomId("kp:view:inventory")
+        .setLabel("Inventory")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function pickpocketItemButtons(inv = {}) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("pp:item:none")
+        .setLabel("No Item")
+        .setStyle(ButtonStyle.Secondary),
+
+      new ButtonBuilder()
+        .setCustomId("pp:item:gloves")
+        .setLabel(`Gloves (${Number(inv.gloves_uses || 0)})`)
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(Number(inv.gloves_uses || 0) <= 0),
+
+      new ButtonBuilder()
+        .setCustomId("pp:item:mask")
+        .setLabel(`Mask (${Number(inv.mask_count || 0)})`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(Number(inv.mask_count || 0) <= 0),
+
+      new ButtonBuilder()
+        .setCustomId("pp:item:lockpick")
+        .setLabel(`Lockpick (${Number(inv.lockpick_uses || 0)})`)
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(Number(inv.lockpick_uses || 0) <= 0)
+    )
+  ];
+}
+
+function pickpocketTargetButtons(hasLockpick = false) {
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("pp:target:coat")
+      .setLabel("🧥 Coat Pocket")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("pp:target:purse")
+      .setLabel("👜 Purse")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("pp:target:phone")
+      .setLabel("📱 Phone")
+      .setStyle(ButtonStyle.Secondary),
+
+    new ButtonBuilder()
+      .setCustomId("pp:target:chips")
+      .setLabel("🎲 Casino Chips")
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("pp:target:briefcase")
+      .setLabel("💼 Briefcase 🔒")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(!hasLockpick),
+
+    new ButtonBuilder()
+      .setCustomId("pp:target:hidden")
+      .setLabel("🗄 Hidden Compartment 🔒")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(!hasLockpick)
+  );
+
+  return [row1, row2];
+}
+
+function resolveKleptoDropOutcome() {
+  const roll = Math.random() * 100;
+
+  if (roll < 35) return { type: "small", amount: randomInt(2000, 8000) };
+  if (roll < 60) return { type: "medium", amount: randomInt(9000, 18000) };
+  if (roll < 70) return { type: "big", amount: randomInt(19000, 35000) };
+  if (roll < 73) return { type: "jackpot", amount: randomInt(36000, 60000) };
+  if (roll < 88) return { type: "nothing", amount: 0 };
+  return { type: "caught", amount: randomInt(1000, 6000) };
+}
+
+function resolvePickpocketOutcome({ locked = false, item = "none" } = {}) {
+  const roll = Math.random() * 100;
+
+  if (!locked) {
+    if (item === "gloves") {
+      if (roll < 40) return { type: "small", amount: randomInt(3000, 9000) };
+      if (roll < 72) return { type: "medium", amount: randomInt(10000, 20000) };
+      if (roll < 87) return { type: "big", amount: randomInt(21000, 38000) };
+      if (roll < 92) return { type: "jackpot", amount: randomInt(39000, 60000) };
+      if (roll < 97) return { type: "nothing", amount: 0 };
+      return { type: "caught", amount: randomInt(2000, 9000) };
+    }
+
+    if (roll < 35) return { type: "small", amount: randomInt(2000, 8000) };
+    if (roll < 60) return { type: "medium", amount: randomInt(9000, 18000) };
+    if (roll < 70) return { type: "big", amount: randomInt(19000, 35000) };
+    if (roll < 73) return { type: "jackpot", amount: randomInt(36000, 60000) };
+    if (roll < 88) return { type: "nothing", amount: 0 };
+    return { type: "caught", amount: randomInt(2000, 10000) };
+  }
+
+  if (roll < 35) return { type: "medium", amount: randomInt(12000, 25000) };
+  if (roll < 60) return { type: "big", amount: randomInt(26000, 45000) };
+  if (roll < 70) return { type: "jackpot", amount: randomInt(46000, 80000) };
+  if (roll < 80) return { type: "nothing", amount: 0 };
+  return { type: "caught", amount: randomInt(5000, 15000) };
+}
+
 // ===== Ready / Command registration =====
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -914,6 +1102,49 @@ dailyTimes.forEach((time) => {
   console.log("👻 Ghosty role pings scheduled.");
 });
 
+  // ===== Klepto drop scheduler =====
+  async function startKleptoDrop() {
+    try {
+      const channel = await client.channels.fetch(KLEPTO_CHANNEL_ID).catch(() => null);
+      if (!channel || !channel.isTextBased()) return;
+
+      kleptoDropActive = true;
+      kleptoDropEndsAt = Date.now() + KLEPTO_DROP_DURATION_MS;
+      kleptoParticipants.clear();
+
+      await channel.send({
+        content:
+          `<@&${BANDITS_ROLE_ID}>\n` +
+          `👜 **A Distracted Stranger Appears!**\n` +
+          `Their wallet is hanging out of their pocket...\n` +
+          `Use **/klepto** within **60 seconds** to try your luck.`
+      });
+
+      setTimeout(async () => {
+        try {
+          kleptoDropActive = false;
+          kleptoDropEndsAt = 0;
+          kleptoParticipants.clear();
+
+          const endChannel = await client.channels.fetch(KLEPTO_CHANNEL_ID).catch(() => null);
+          if (endChannel && endChannel.isTextBased()) {
+            await endChannel.send("The stranger noticed the chaos and disappeared.");
+          }
+        } catch (err) {
+          console.error("Klepto drop cleanup error:", err);
+        }
+      }, KLEPTO_DROP_DURATION_MS);
+
+    } catch (err) {
+      console.error("Klepto drop start error:", err);
+    }
+  }
+
+  setInterval(async () => {
+    if (kleptoDropActive) return;
+    await startKleptoDrop();
+  }, KLEPTO_DROP_INTERVAL_MS);
+  
 // ===== PRIVATE ROOMS CLEANUP (every hour) =====
 cron.schedule("0 * * * *", async () => {
   try {
@@ -1796,6 +2027,178 @@ if (!existing || String(existing.channel_id) !== String(channelId)) {
     await ch.permissionOverwrites.delete(targetId).catch(() => null);
     return interaction.reply({ content: `🗑️ Removed <@${targetId}> from this room.`, ephemeral: true });
   }
+}
+// ---------- KLEPTO SHOP BUTTONS ----------
+if (interaction.isButton() && interaction.customId.startsWith("kp:")) {
+  await interaction.deferUpdate();
+
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+  const cfg = await getConfig(guildId);
+
+  if (interaction.customId === "kp:view:inventory") {
+    const inv = await getKleptoInventory(guildId, userId);
+
+    return interaction.editReply({
+      embeds: [buildKleptoShopEmbed(cfg, inv)],
+      components: kleptoShopButtons()
+    });
+  }
+
+  const itemId = interaction.customId.split(":")[2];
+  const item = KLEPTO_ITEMS[itemId];
+  if (!item) return;
+
+  const take = await applyBalanceChange({
+    guildId,
+    userId,
+    amount: -item.price,
+    type: "klepto_shop",
+    reason: `Bought ${item.name}`,
+    actorId: userId
+  });
+
+  if (!take.ok) {
+    return interaction.followUp({
+      content: `❌ You don’t have enough ${cfg.currency_name}.`,
+      ephemeral: true
+    });
+  }
+
+  await addKleptoItem(guildId, userId, itemId, item.uses);
+
+  const inv = await getKleptoInventory(guildId, userId);
+
+  return interaction.editReply({
+    content: `✅ You bought **${item.name}** for **${item.price.toLocaleString("en-US")}** ${cfg.currency_name}.`,
+    embeds: [buildKleptoShopEmbed(cfg, inv)],
+    components: kleptoShopButtons()
+  });
+}
+// ---------- PICKPOCKET ITEM BUTTONS ----------
+if (interaction.isButton() && interaction.customId.startsWith("pp:item:")) {
+  await interaction.deferUpdate();
+
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+  const inv = await getKleptoInventory(guildId, userId);
+
+  const itemId = interaction.customId.split(":")[2];
+  const hasLockpick = Number(inv.lockpick_uses || 0) > 0 || itemId === "lockpick";
+
+  const embed = new EmbedBuilder()
+    .setTitle("🕵️ Pick a Pocket")
+    .setDescription(
+      `Choose where to steal from.\n\n` +
+      `Selected item: **${itemId === "none" ? "No Item" : KLEPTO_ITEMS[itemId]?.name || itemId}**`
+    )
+    .setFooter({ text: `pp_item:${itemId}` })
+    .setTimestamp(new Date());
+
+  return interaction.editReply({
+    embeds: [embed],
+    components: pickpocketTargetButtons(hasLockpick)
+  });
+}
+
+// ---------- PICKPOCKET TARGET BUTTONS ----------
+if (interaction.isButton() && interaction.customId.startsWith("pp:target:")) {
+  await interaction.deferUpdate();
+
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+  const cfg = await getConfig(guildId);
+
+  const ppState = await getPickpocketState(guildId, userId);
+  const inv = await getKleptoInventory(guildId, userId);
+
+  const lastAt = ppState?.last_pickpocket_at
+    ? new Date(ppState.last_pickpocket_at).getTime()
+    : 0;
+
+  if (lastAt && Date.now() - lastAt < PICKPOCKET_COOLDOWN_MS) {
+    const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
+    const remainingMin = Math.ceil(remainingMs / 60000);
+
+    return interaction.followUp({
+      content: `⏳ You are on cooldown for about **${remainingMin} minutes**.`,
+      ephemeral: true
+    });
+  }
+
+  const targetId = interaction.customId.split(":")[2];
+  const originalEmbed = interaction.message?.embeds?.[0];
+  const footerText = originalEmbed?.footer?.text || "";
+  const selectedItem = footerText.startsWith("pp_item:")
+    ? footerText.replace("pp_item:", "")
+    : "none";
+
+  const locked = targetId === "briefcase" || targetId === "hidden";
+
+  if (locked && selectedItem !== "lockpick" && Number(inv.lockpick_uses || 0) <= 0) {
+    return interaction.followUp({
+      content: "🔒 You need a **Lockpick** to attempt that target.",
+      ephemeral: true
+    });
+  }
+
+  let effectiveItem = selectedItem;
+
+  if (effectiveItem === "lockpick") {
+    await useKleptoItem(guildId, userId, "lockpick", 1);
+  }
+
+  const outcome = resolvePickpocketOutcome({
+    locked,
+    item: effectiveItem
+  });
+
+  let message = "";
+
+  if (outcome.type === "caught" && effectiveItem === "mask" && Number(inv.mask_count || 0) > 0) {
+    await useKleptoItem(guildId, userId, "mask", 1);
+    message = "😷 Your mask kept you hidden. You escaped without penalty.";
+  } else if (outcome.type === "caught") {
+    await applyBalanceChange({
+      guildId,
+      userId,
+      amount: -outcome.amount,
+      type: "pickpocket_fail",
+      reason: `Caught pickpocketing (${targetId})`,
+      actorId: "system"
+    });
+
+    message = `🚨 You got caught and lost **${outcome.amount.toLocaleString("en-US")}** ${cfg.currency_name}.`;
+  } else if (["small", "medium", "big", "jackpot"].includes(outcome.type)) {
+    await applyBalanceChange({
+      guildId,
+      userId,
+      amount: outcome.amount,
+      type: "pickpocket_win",
+      reason: `Pickpocket success (${targetId})`,
+      actorId: "system"
+    });
+
+    message = `💰 You stole **${outcome.amount.toLocaleString("en-US")}** ${cfg.currency_name}.`;
+  } else {
+    message = "🫠 You found absolutely nothing useful.";
+  }
+
+  if (effectiveItem === "gloves" && Number(inv.gloves_uses || 0) > 0) {
+    await useKleptoItem(guildId, userId, "gloves", 1);
+  }
+
+  await setPickpocketState(guildId, userId, new Date().toISOString());
+
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🕵️ Pickpocket Result")
+        .setDescription(message)
+        .setTimestamp(new Date())
+    ],
+    components: []
+  });
 }
 
      // ---------- LEADERBOARD BUTTONS ----------
