@@ -46,13 +46,24 @@ const BOOSTER_TIMEZONE = "America/Chicago";
 // KLEPTO SYSTEM
 // ===============================
 const BANDITS_ROLE_ID = "1481896783377465344";
-const KLEPTO_CHANNEL_ID = "1393270443175055440";
+const KLEPTO_CHANNEL_IDS = [
+  "1393270443175055440", // current syndicate-gambling
+  "1198016598947139644"  // gen chat
+];
 
-const KLEPTO_DROP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const KLEPTO_MIN_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const KLEPTO_MAX_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const KLEPTO_DROP_DURATION_MS = 60 * 1000; // 60 seconds
+
+function getRandomKleptoDelay() {
+  return Math.floor(
+    Math.random() * (KLEPTO_MAX_INTERVAL_MS - KLEPTO_MIN_INTERVAL_MS + 1)
+  ) + KLEPTO_MIN_INTERVAL_MS;
+}
 
 let kleptoDropActive = false;
 let kleptoDropEndsAt = 0;
+let activeKleptoChannelId = null;
 const kleptoParticipants = new Set();
 
 // ==============================
@@ -1121,11 +1132,17 @@ dailyTimes.forEach((time) => {
   // ===== Klepto drop scheduler =====
   async function startKleptoDrop() {
     try {
-      const channel = await client.channels.fetch(KLEPTO_CHANNEL_ID).catch(() => null);
-      if (!channel || !channel.isTextBased()) return;
+      const channelId =
+        KLEPTO_CHANNEL_IDS[Math.floor(Math.random() * KLEPTO_CHANNEL_IDS.length)];
+
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (!channel || !channel.isTextBased()) {
+        return scheduleNextKleptoDrop();
+      }
 
       kleptoDropActive = true;
       kleptoDropEndsAt = Date.now() + KLEPTO_DROP_DURATION_MS;
+      activeKleptoChannelId = channelId;
       kleptoParticipants.clear();
 
       await channel.send({
@@ -1140,26 +1157,37 @@ dailyTimes.forEach((time) => {
         try {
           kleptoDropActive = false;
           kleptoDropEndsAt = 0;
+          activeKleptoChannelId = null;
           kleptoParticipants.clear();
 
-          const endChannel = await client.channels.fetch(KLEPTO_CHANNEL_ID).catch(() => null);
+          const endChannel = await client.channels.fetch(channelId).catch(() => null);
           if (endChannel && endChannel.isTextBased()) {
             await endChannel.send("The stranger noticed the chaos and disappeared.");
           }
         } catch (err) {
           console.error("Klepto drop cleanup error:", err);
+        } finally {
+          scheduleNextKleptoDrop();
         }
       }, KLEPTO_DROP_DURATION_MS);
 
     } catch (err) {
       console.error("Klepto drop start error:", err);
+      scheduleNextKleptoDrop();
     }
   }
 
-  setInterval(async () => {
-    if (kleptoDropActive) return;
-    await startKleptoDrop();
-  }, KLEPTO_DROP_INTERVAL_MS);
+  function scheduleNextKleptoDrop() {
+    const delay = getRandomKleptoDelay();
+    console.log(`Next klepto drop in ${Math.round(delay / 60000)} minutes`);
+
+    setTimeout(async () => {
+      if (kleptoDropActive) return scheduleNextKleptoDrop();
+      await startKleptoDrop();
+    }, delay);
+  }
+
+  scheduleNextKleptoDrop();
   });
   
 // ===== PRIVATE ROOMS CLEANUP (every hour) =====
@@ -3480,7 +3508,7 @@ if (interaction.commandName === "klepto") {
     return;
   }
 
-  if (interaction.channelId !== KLEPTO_CHANNEL_ID) {
+    if (interaction.channelId !== activeKleptoChannelId) {
     try {
       if (interaction.deferred || interaction.replied) {
         await interaction.deleteReply().catch(() => {});
