@@ -855,7 +855,29 @@ async function applyBalanceChange({
 // 🕵️ KLEPTO HELPERS
 // ==============================
 const PICKPOCKET_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 hours
+function formatCooldownTime(ms) {
+  const totalMinutes = Math.ceil(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
 
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+function getPickpocketCooldownMessage(ms) {
+  const timeText = formatCooldownTime(ms);
+
+  const messages = [
+    `🚔 Lay low… you can pickpocket again in **${timeText}**.`,
+    `🕶️ Too many eyes around… try again in **${timeText}**.`,
+    `👮 The heat is on. Come back in **${timeText}**.`,
+    `⏳ You need to wait **${timeText}** before your next pickpocket.`,
+    `💼 This place is too hot right now. Try again in **${timeText}**.`
+  ];
+
+  return messages[Math.floor(Math.random() * messages.length)];
+}
 const KLEPTO_ITEMS = {
   gloves: { id: "gloves", name: "Gloves", price: 1000, uses: 3 },
   mask: { id: "mask", name: "Mask", price: 2500, uses: 1 },
@@ -902,12 +924,7 @@ function kleptoShopButtons() {
       new ButtonBuilder()
         .setCustomId("kp:buy:lockpick")
         .setLabel("Buy Lockpick")
-        .setStyle(ButtonStyle.Success),
-
-      new ButtonBuilder()
-        .setCustomId("kp:view:inventory")
-        .setLabel("Inventory")
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Success)
     )
   ];
 }
@@ -2036,15 +2053,6 @@ if (interaction.isButton() && interaction.customId.startsWith("kp:")) {
   const userId = interaction.user.id;
   const cfg = await getConfig(guildId);
 
-  if (interaction.customId === "kp:view:inventory") {
-    const inv = await getKleptoInventory(guildId, userId);
-
-    return interaction.editReply({
-      embeds: [buildKleptoShopEmbed(cfg, inv)],
-      components: kleptoShopButtons()
-    });
-  }
-
   const itemId = interaction.customId.split(":")[2];
   const item = KLEPTO_ITEMS[itemId];
   if (!item) return;
@@ -2117,14 +2125,13 @@ if (interaction.isButton() && interaction.customId.startsWith("pp:target:")) {
     : 0;
 
   if (lastAt && Date.now() - lastAt < PICKPOCKET_COOLDOWN_MS) {
-    const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
-    const remainingMin = Math.ceil(remainingMs / 60000);
+  const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
 
-    return interaction.followUp({
-      content: `⏳ You are on cooldown for about **${remainingMin} minutes**.`,
-      ephemeral: true
-    });
-  }
+  return interaction.followUp({
+    content: getPickpocketCooldownMessage(remainingMs),
+    ephemeral: true
+  });
+}
 
   const targetId = interaction.customId.split(":")[2];
   const originalEmbed = interaction.message?.embeds?.[0];
@@ -3540,13 +3547,12 @@ if (interaction.commandName === "pickpocket") {
     : 0;
 
   if (lastAt && Date.now() - lastAt < PICKPOCKET_COOLDOWN_MS) {
-    const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
-    const remainingMin = Math.ceil(remainingMs / 60000);
+  const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
 
-    return interaction.editReply(
-      `⏳ You are on cooldown for about **${remainingMin} minutes**.`
-    );
-  }
+  return interaction.editReply(
+    getPickpocketCooldownMessage(remainingMs)
+  );
+}
 
   if (
     Number(inv.gloves_uses || 0) <= 0 &&
