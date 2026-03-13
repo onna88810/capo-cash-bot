@@ -3439,6 +3439,143 @@ if (interaction.commandName === "private") {
   return interaction.editReply("❌ Unknown private subcommand.");
 }
 
+// ---------- /shop ----------
+if (interaction.commandName === "shop") {
+  await upsertUserRow(guildId, callerId);
+  const inv = await getKleptoInventory(guildId, callerId);
+
+  return interaction.editReply({
+    embeds: [buildKleptoShopEmbed(cfg, inv)],
+    components: kleptoShopButtons()
+  });
+}
+
+// ---------- /inventory ----------
+if (interaction.commandName === "inventory") {
+  await upsertUserRow(guildId, callerId);
+  const inv = await getKleptoInventory(guildId, callerId);
+
+  return interaction.editReply(
+    `🧤 Gloves: **${Number(inv.gloves_uses || 0)}**\n` +
+    `😷 Mask: **${Number(inv.mask_count || 0)}**\n` +
+    `🔓 Lockpick: **${Number(inv.lockpick_uses || 0)}**`
+  );
+}
+
+// ---------- /klepto ----------
+if (interaction.commandName === "klepto") {
+  if (!kleptoDropActive || Date.now() > kleptoDropEndsAt) {
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.deleteReply().catch(() => {});
+      }
+    } catch {}
+    return;
+  }
+
+  if (interaction.channelId !== KLEPTO_CHANNEL_ID) {
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.deleteReply().catch(() => {});
+      }
+    } catch {}
+    return;
+  }
+
+  if (kleptoParticipants.has(callerId)) {
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.deleteReply().catch(() => {});
+      }
+    } catch {}
+    return;
+  }
+
+  kleptoParticipants.add(callerId);
+
+  const outcome = resolveKleptoDropOutcome();
+
+  if (outcome.type === "caught") {
+    await applyBalanceChange({
+      guildId,
+      userId: callerId,
+      amount: -outcome.amount,
+      type: "klepto_fail",
+      reason: "Caught during live klepto drop",
+      actorId: "system"
+    });
+
+    return interaction.editReply(
+      `🚨 The stranger noticed. You lost **${outcome.amount.toLocaleString("en-US")}** ${cfg.currency_name}.`
+    );
+  }
+
+  if (["small", "medium", "big", "jackpot"].includes(outcome.type)) {
+    await applyBalanceChange({
+      guildId,
+      userId: callerId,
+      amount: outcome.amount,
+      type: "klepto_win",
+      reason: "Live klepto drop win",
+      actorId: "system"
+    });
+
+    return interaction.editReply(
+      `💰 You lifted **${outcome.amount.toLocaleString("en-US")}** ${cfg.currency_name}.`
+    );
+  }
+
+  return interaction.editReply("🫠 You found nothing useful.");
+}
+
+// ---------- /pickpocket ----------
+if (interaction.commandName === "pickpocket") {
+  await upsertUserRow(guildId, callerId);
+
+  const ppState = await getPickpocketState(guildId, callerId);
+  const inv = await getKleptoInventory(guildId, callerId);
+
+  const lastAt = ppState?.last_pickpocket_at
+    ? new Date(ppState.last_pickpocket_at).getTime()
+    : 0;
+
+  if (lastAt && Date.now() - lastAt < PICKPOCKET_COOLDOWN_MS) {
+    const remainingMs = PICKPOCKET_COOLDOWN_MS - (Date.now() - lastAt);
+    const remainingMin = Math.ceil(remainingMs / 60000);
+
+    return interaction.editReply(
+      `⏳ You are on cooldown for about **${remainingMin} minutes**.`
+    );
+  }
+
+  if (
+    Number(inv.gloves_uses || 0) <= 0 &&
+    Number(inv.mask_count || 0) <= 0 &&
+    Number(inv.lockpick_uses || 0) <= 0
+  ) {
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🕵️ Pick a Pocket")
+          .setDescription("Choose where to steal from.")
+          .setFooter({ text: "pp_item:none" })
+          .setTimestamp(new Date())
+      ],
+      components: pickpocketTargetButtons(false)
+    });
+  }
+
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("🕵️ Pickpocket")
+        .setDescription("Choose an item to use, or continue with no item.")
+        .setTimestamp(new Date())
+    ],
+    components: pickpocketItemButtons(inv)
+  });
+}
+
     // ---------- /slots ----------
     // NOTE: This index already expects /slots with NO bet option.
     // If Discord still shows a bet option, remove it from commands.js then re-deploy.
