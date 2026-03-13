@@ -48,7 +48,7 @@ const BOOSTER_TIMEZONE = "America/Chicago";
 const BANDITS_ROLE_ID = "1481896783377465344";
 const KLEPTO_CHANNEL_ID = "1393270443175055440";
 
-const KLEPTO_DROP_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const KLEPTO_DROP_INTERVAL_MS = 60 * 1000;
 const KLEPTO_DROP_DURATION_MS = 60 * 1000; // 60 seconds
 
 let kleptoDropActive = false;
@@ -1100,7 +1100,6 @@ dailyTimes.forEach((time) => {
 });
 
   console.log("👻 Ghosty role pings scheduled.");
-});
 
   // ===== Klepto drop scheduler =====
   async function startKleptoDrop() {
