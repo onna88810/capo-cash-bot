@@ -32,7 +32,7 @@ const FULL_LOCK_ROLE_IDS = [
 const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 
 // The ONE channel you want /lock and /unlock to affect:
-const LOCK_CHANNEL_ID = "1469891401314603018";
+const LOCK_CHANNEL_ID = "1485034980584325230";
 
 console.log("🎁 Monthly Booster Gift block loaded");
 // ===== Monthly Booster Gift =====
