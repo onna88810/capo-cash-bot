@@ -3847,7 +3847,7 @@ if (isLock) {
 }
 
     return interaction.editReply(
-      isLock ? "🔒 The hub is now locked." : "🔓 The hub is now open."
+      isLock ? "🔒 The keep is now locked." : "🔓 The keep is now open."
     );
   } catch (e) {
     console.error("Lock/unlock error:", e?.message || e);
