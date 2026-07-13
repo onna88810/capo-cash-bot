@@ -3847,7 +3847,7 @@ if (isLock) {
 }
 
     return interaction.editReply(
-      isLock ? "🔒 The pavilion is now locked." : "🔓 The keep is now open."
+      isLock ? "🔒 The pavilion is now locked." : "🔓 The pavilion is now open."
     );
   } catch (e) {
     console.error("Lock/unlock error:", e?.message || e);
