@@ -1061,14 +1061,14 @@ client.once("ready", async () => {
   );
   console.log("Global slash commands registered.");
 
-  // ===== Ghosty Role Daily Pings =====
-  const GHOSTY_CHANNEL_ID = "1301577002720952321";
-  const GHOSTY_ROLE_ID = "1301631283868336168";
+// ===== Ghosty Role Daily Pings =====
+const GHOSTY_CHANNEL_ID = "1301577002720952321";
+const GHOSTY_ROLE_ID = "1301631283868336168";
 const TIMEZONE = "America/Chicago";
-
 // October–March (left column)
 const standardTimes = [
-  "00:06","01:07","02:08","03:09",
+  "00:05","00:06","00:55",
+  "01:07","02:08","03:09",
   "04:01","04:10","05:11","06:12","06:21",
   "07:13","07:31","07:37",
   "08:14","08:41",
@@ -1085,10 +1085,10 @@ const standardTimes = [
   "22:04","22:44",
   "23:05","23:55"
 ];
-
 // March–October (right column)
 const dstTimes = [
-  "01:06","02:07","03:08","04:09",
+  "01:05","01:06","01:55",
+  "02:07","03:08","04:09",
   "05:01","05:10","06:11","07:12","07:21",
   "08:13","08:31","08:37",
   "09:14","09:41",
@@ -1104,20 +1104,16 @@ const dstTimes = [
   "22:03","22:33",
   "23:04","23:44"
 ];
-
 const nowChicago = DateTime.now().setZone(TIMEZONE);
 const dailyTimes = nowChicago.isInDST ? dstTimes : standardTimes;
-
 dailyTimes.forEach((time) => {
   const [hour, minute] = time.split(":");
-
   cron.schedule(
     `${minute} ${hour} * * *`,
     async () => {
       try {
         const channel = await client.channels.fetch(GHOSTY_CHANNEL_ID);
         if (!channel || !channel.isTextBased()) return;
-
         await channel.send(`<@&${GHOSTY_ROLE_ID}>`);
       } catch (err) {
         console.error("Ghosty ping error:", err);
@@ -1126,8 +1122,7 @@ dailyTimes.forEach((time) => {
     { timezone: TIMEZONE }
   );
 });
-
-  console.log("👻 Ghosty role pings scheduled.");
+console.log("👻 Ghosty role pings scheduled.");
 
   // ===== Klepto drop scheduler =====
   async function startKleptoDrop() {
