@@ -1065,7 +1065,7 @@ client.once("ready", async () => {
 const GHOSTY_CHANNEL_ID = "1301577002720952321";
 const GHOSTY_ROLE_ID = "1301631283868336168";
 const TIMEZONE = "America/Chicago";
-// October–March (left column)
+// October–March
 const standardTimes = [
   "00:05","00:06","00:55",
   "01:07","02:08","03:09",
@@ -1085,10 +1085,11 @@ const standardTimes = [
   "22:04","22:44",
   "23:05","23:55"
 ];
-// March–October (right column)
+
+// March–October
 const dstTimes = [
-  "01:05","01:06","01:55",
-  "02:07","03:08","04:09",
+  "00:05","00:55",
+  "01:06","02:07","03:08","04:09",
   "05:01","05:10","06:11","07:12","07:21",
   "08:13","08:31","08:37",
   "09:14","09:41",
