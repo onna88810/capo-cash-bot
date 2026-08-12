@@ -31,7 +31,10 @@ const FULL_LOCK_ROLE_IDS = [
 // Role that should STILL be able to send messages, but can't react/use external emojis
 const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 
-// The ONE channel you want /lock and /unlock to affect:
+// General Members role — used when locking any other channel
+const MEMBER_ROLE_ID = "1202489476052418601";
+
+// Special Pavilion channel — uses the L/N/S/GH lock rules above
 const LOCK_CHANNEL_ID = "1457168013710331914";
 
 console.log("🎁 Monthly Booster Gift block loaded");
@@ -3795,59 +3798,88 @@ if (interaction.commandName === "pickpocket") {
       });
     }
 
-  // 🔒 LOCK / 🔓 UNLOCK (single channel only)
+// 🔒 LOCK / 🔓 UNLOCK
 if (interaction.commandName === "lock" || interaction.commandName === "unlock") {
   const isLock = interaction.commandName === "lock";
 
   try {
-    const channel = await interaction.client.channels.fetch(LOCK_CHANNEL_ID);
+    const channel = interaction.channel;
+
     if (!channel || !channel.isTextBased()) {
-      return interaction.editReply("❌ Lock channel not found or not a text channel.");
+      return interaction.editReply("❌ This is not a text channel.");
     }
 
-    // ===== FULL LOCK ROLES (L/N/S) =====
-    for (const roleId of FULL_LOCK_ROLE_IDS) {
+    // ==============================
+    // SPECIAL PAVILION CHANNEL
+    // ==============================
+    if (channel.id === LOCK_CHANNEL_ID) {
+
+      // FULL LOCK ROLES (L / N / S)
+      for (const roleId of FULL_LOCK_ROLE_IDS) {
+        if (isLock) {
+          await channel.permissionOverwrites.edit(roleId, {
+            SendMessages: false,
+            SendMessagesInThreads: false,
+            AddReactions: false,
+            UseExternalEmojis: false
+          });
+        } else {
+          await channel.permissionOverwrites.edit(roleId, {
+            SendMessages: true,
+            SendMessagesInThreads: true,
+            AddReactions: true,
+            UseExternalEmojis: true,
+            UseExternalStickers: true
+          });
+        }
+      }
+
+      // GH ROLE
       if (isLock) {
-        await channel.permissionOverwrites.edit(roleId, {
-          SendMessages: false,
-          SendMessagesInThreads: false,
+        await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
           AddReactions: false,
-          UseExternalEmojis: false
+          UseExternalEmojis: false,
+          UseExternalStickers: false
         });
       } else {
-        // ✅ force allow back on (do NOT set null)
-await channel.permissionOverwrites.edit(roleId, {
-  SendMessages: true,
-  SendMessagesInThreads: true,
-  AddReactions: true,
-  UseExternalEmojis: true,
-  UseExternalStickers: true
-});
+        await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
+          AddReactions: true,
+          UseExternalEmojis: true,
+          UseExternalStickers: true
+        });
       }
+
+      return interaction.editReply(
+        isLock
+          ? "🔒 The pavilion is now locked."
+          : "🔓 The pavilion is now open."
+      );
     }
 
-    // ===== EMOJI-ONLY LOCK ROLE (GH) =====
-if (isLock) {
-  await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
-    AddReactions: false,
-    UseExternalEmojis: false,
-    UseExternalStickers: false
-  });
-} else {
-  // ✅ force allow (do NOT set null)
-  await channel.permissionOverwrites.edit(EMOJI_ONLY_LOCK_ROLE_ID, {
-    AddReactions: true,
-    UseExternalEmojis: true,
-    UseExternalStickers: true
-  });
-}
+    // ==============================
+    // EVERY OTHER CHANNEL
+    // ==============================
 
-    return interaction.editReply(
-      isLock ? "🔒 The pavilion is now locked." : "🔓 The pavilion is now open."
-    );
+    if (isLock) {
+      await channel.permissionOverwrites.edit(MEMBER_ROLE_ID, {
+        SendMessages: false
+      });
+
+      return interaction.editReply("🔒 This channel is now locked.");
+    }
+
+    await channel.permissionOverwrites.edit(MEMBER_ROLE_ID, {
+      SendMessages: null
+    });
+
+    return interaction.editReply("🔓 This channel is now unlocked.");
+
   } catch (e) {
     console.error("Lock/unlock error:", e?.message || e);
-    return interaction.editReply("⚠️ Failed to update channel permissions.");
+
+    return interaction.editReply(
+      "⚠️ Failed to update channel permissions."
+    );
   }
 }
 
