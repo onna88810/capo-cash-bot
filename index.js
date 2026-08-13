@@ -3869,7 +3869,7 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
     }
 
     await channel.permissionOverwrites.edit(MEMBER_ROLE_ID, {
-      SendMessages: null
+      SendMessages: true
     });
 
     return interaction.editReply("🔓 This channel is now unlocked.");
