@@ -3851,8 +3851,8 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
       return interaction.editReply(
         isLock
-          ? "🔒 Class dismissed."
-          : "🔓 Class is now in session!"
+          ? "🔒 The house has denied your entry."
+          : "🔓 The house of horrors is ready for you!"
       );
     }
 
