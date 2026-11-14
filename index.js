@@ -35,7 +35,7 @@ const EMOJI_ONLY_LOCK_ROLE_ID = "1387100823078699148"; // GH
 const MEMBER_ROLE_ID = "1202489476052418601";
 
 // Special Pavilion channel — uses the L/N/S/GH lock rules above
-const LOCK_CHANNEL_ID = "1541162319151759541";
+const LOCK_CHANNEL_ID = "1571207462076551258";
 
 console.log("🎁 Monthly Booster Gift block loaded");
 // ===== Monthly Booster Gift =====
@@ -3851,8 +3851,8 @@ if (interaction.commandName === "lock" || interaction.commandName === "unlock") 
 
       return interaction.editReply(
         isLock
-          ? "🔒 The house has denied your entry."
-          : "🔓 The house of horrors is ready for you!"
+          ? "🔒 The trials are now over."
+          : "🔓 The trials have begun!"
       );
     }
 
